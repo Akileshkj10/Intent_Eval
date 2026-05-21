@@ -1,0 +1,23 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+outputs/
+cache/
+.cursor/
+OneDrive_1_5-21-2026/
+
+# Client confidential artefacts — never commit
+*.pptx
+tests/fixtures_client/

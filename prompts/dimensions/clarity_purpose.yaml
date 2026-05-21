@@ -1,0 +1,22 @@
+dimension_id: clarity_purpose
+dimension_name: Clarity of Purpose (Why)
+rubric_version: weighted_rubric_v2025_12_01
+output_schema_ref: schemas/llm_dimension_response.json
+system: |
+  You are a Leading Change evaluator operating under NDA. Assess only the provided run documents.
+  Score this single dimension and return structured JSON only.
+rules:
+  - Use only provided 5MAP/5QMA and optional higher-intent content; do not reference outside documents.
+  - Assign one integer score from 1 to 5 for this dimension only.
+  - Include at least one exact evidence quote from the provided material.
+  - Preserve rubric wording and apply it exactly (no custom rubric invention).
+  - Do not compute weighted totals.
+question_specific_checks:
+  - Prioritize Q2 and Q1 linkage; confirm the intent clearly states why it matters.
+  - Check whether the purpose connects to wider mission outcomes.
+rubric_levels:
+  "1": No purpose is provided.
+  "2": Purpose is generic or disconnected from the real mission.
+  "3": Purpose is implied but not explicit.
+  "4": Purpose is stated and mostly clear, though not inspiring.
+  "5": Purpose compellingly explains why the outcome matters and connects to the larger mission.

@@ -1,0 +1,44 @@
+{
+  "map_title": "Simplification 5QMA (Synthetic Parsed Fixture)",
+  "source_filename": "synthetic_simplification_5qma.pptx",
+  "slides": [
+    {
+      "slide_id": "5QMA Simplification# | PowerPoint",
+      "title": "Q2 Intent and Measures of Success",
+      "text": "We will simplify activity, processes, systems, policy, governance and use of technology to remove friction and create operational headroom for transformation and growth. We will track progress through a small dashboard of leading indicators across blockers removed, time released, and adoption.",
+      "notes": "Outcome is clear but broad and currently framed with several clauses."
+    },
+    {
+      "slide_id": "Intent for...kshop.pptx",
+      "title": "Q1 Context and Higher Intent",
+      "text": "Sector intent is to simplify where we must so that capacity is released for growth and transformation at pace. The context includes productivity pressure, workforce complexity frustration, and dependency on consistent execution across business units.",
+      "notes": "Higher direction and context should cascade one and two levels."
+    },
+    {
+      "slide_id": "Consolidat...ap_v1.pptx",
+      "title": "Q1 Context Inputs",
+      "text": "Consolidated landscape outputs identify recurring bottlenecks in productivity and execution capacity. Teams report duplicated effort, policy friction, and unclear ownership. The map supports prioritisation but requires explicit links to local decision rights.",
+      "notes": "Used as contextual evidence for alignment narrative."
+    },
+    {
+      "slide_id": "slide_q3_main_effort",
+      "title": "Q3 Tasks and Main Effort",
+      "text": "Tasks are structured in a phased sequence: identify issues, evaluate options, plan implementation, and implement improvements. Named leads are assigned to work packages, but the single main effort is not yet clearly articulated and line-of-sight to intent can be stronger.",
+      "notes": "Task verbs dominate some framing and can be moved out of intent statement."
+    },
+    {
+      "slide_id": "slide_q4_q5_boundaries_backbrief",
+      "title": "Q4 Boundaries and Q5 Backbrief",
+      "text": "Freedoms include local process redesign within agreed policy limits, while constraints include budget boundaries, compliance requirements, and shared platform dependencies. Assumptions include access to change capacity and cross-team collaboration; key risks and escalation routes are partially defined.",
+      "notes": "Need clearer specification of local versus escalated decisions and explicit dependency handling."
+    }
+  ],
+  "sections": {
+    "q1_context": "The operating context requires simplification to release capacity for growth and transformation at pace. Sector direction emphasizes simplifying where we must, supported by workshop and landscape outputs that describe productivity pressure, complexity, and execution constraints. The context is directionally aligned but can be made more explicit for downstream teams.",
+    "q2_intent": "The intent states a desired end-state of materially simplifying how work gets done by removing major sources of friction across processes, systems, policy, governance, and technology. The why is to improve colleague effectiveness, reduce wasted effort, and future-proof performance. Success measures are present but need clearer, time-bound thresholds.",
+    "q3_tasks": "Implied tasks follow a logical sequence from issue identification through evaluation, planning, and implementation. Ownership is mostly clear and phases are practical, but line-of-sight to one single main effort can be sharper. Some wording remains procedural and can be reframed to preserve outcome focus while still enabling clear delegation.",
+    "q4_boundaries": "Boundaries describe key constraints such as compliance and budget guardrails, alongside freedoms for local redesign and initiative within defined authority. Decision rights are partially specified but not yet explicit enough for decentralised judgement at pace. Clarifying which decisions remain local versus which require escalation would materially improve freedom to operate.",
+    "q5_backbrief": "Backbrief readiness is emerging with assumptions on capacity, dependencies, and cross-team cooperation identified in principle. Achievability is plausible, but stronger articulation of critical dependencies, anti-goals, and escalation criteria is needed before firm commitment. Questions for leadership should be captured explicitly to improve execution confidence and testability."
+  },
+  "low_confidence_sections": false
+}

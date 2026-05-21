@@ -1,0 +1,20 @@
+version: weighted_rubric_v2025_12_01
+dimensions:
+  - id: clarity_outcome
+    file: prompts/dimensions/clarity_outcome.yaml
+  - id: clarity_purpose
+    file: prompts/dimensions/clarity_purpose.yaml
+  - id: alignment_higher_direction
+    file: prompts/dimensions/alignment_higher_direction.yaml
+  - id: alignment_tasks
+    file: prompts/dimensions/alignment_tasks.yaml
+  - id: conciseness
+    file: prompts/dimensions/conciseness.yaml
+  - id: outcome_focused
+    file: prompts/dimensions/outcome_focused.yaml
+  - id: decentralised_utility
+    file: prompts/dimensions/decentralised_utility.yaml
+  - id: testability
+    file: prompts/dimensions/testability.yaml
+  - id: energy_engagement
+    file: prompts/dimensions/energy_engagement.yaml

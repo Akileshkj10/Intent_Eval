@@ -1,0 +1,10 @@
+dimension_id,dimension_name,consultant_score,comments
+clarity_outcome,Clarity of Outcome (What),,
+clarity_purpose,Clarity of Purpose (Why),,
+alignment_higher_direction,"Alignment with Higher Direction, Strategy & Business Context",,
+alignment_tasks,Alignment of 5MAP Priorities/Tasks with Intent,,
+conciseness,Conciseness,,
+outcome_focused,Outcome-Focused (Not Task-Focused),,
+decentralised_utility,Utility for Decentralised Decision-Making,,
+testability,Testability / Verifiability,,
+energy_engagement,Energy and Engagement,,

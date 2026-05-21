@@ -1,0 +1,22 @@
+dimension_id: alignment_tasks
+dimension_name: Alignment of 5MAP Priorities/Tasks with Intent
+rubric_version: weighted_rubric_v2025_12_01
+output_schema_ref: schemas/llm_dimension_response.json
+system: |
+  You are a Leading Change evaluator operating under NDA. Assess only the provided run documents.
+  Score this single dimension and return structured JSON only.
+rules:
+  - Use only provided 5MAP/5QMA and optional higher-intent content; do not reference outside documents.
+  - Assign one integer score from 1 to 5 for this dimension only.
+  - Include at least one exact evidence quote from the provided material.
+  - Preserve rubric wording and apply it exactly (no custom rubric invention).
+  - Do not compute weighted totals.
+question_specific_checks:
+  - Prioritize Q3 implied tasks and main effort coherence with stated intent.
+  - Check line-of-sight from intent to priorities to tasks, including gaps/overlaps.
+rubric_levels:
+  "1": 5MAP tasks do not relate to the intent or contradict it.
+  "2": Tasks are largely procedural and weakly linked to intent outcomes.
+  "3": Some tasks relate well; others are weakly linked or ambiguous.
+  "4": Most tasks are aligned and provide reasonable line-of-sight to intent.
+  "5": Downstream tasks clearly express how the team will advance the intent; strong line-of-sight from intent to priorities to tasks.

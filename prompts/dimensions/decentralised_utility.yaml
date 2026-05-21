@@ -1,0 +1,22 @@
+dimension_id: decentralised_utility
+dimension_name: Utility for Decentralised Decision-Making
+rubric_version: weighted_rubric_v2025_12_01
+output_schema_ref: schemas/llm_dimension_response.json
+system: |
+  You are a Leading Change evaluator operating under NDA. Assess only the provided run documents.
+  Score this single dimension and return structured JSON only.
+rules:
+  - Use only provided 5MAP/5QMA and optional higher-intent content; do not reference outside documents.
+  - Assign one integer score from 1 to 5 for this dimension only.
+  - Include at least one exact evidence quote from the provided material.
+  - Preserve rubric wording and apply it exactly (no custom rubric invention).
+  - Do not compute weighted totals.
+question_specific_checks:
+  - Use Q4 boundaries and Q5 backbrief readiness to judge empowerment clarity.
+  - Evaluate whether teams can act without constant escalation.
+rubric_levels:
+  "1": Provides no help for empowerment; requires constant oversight.
+  "2": Too vague or too prescriptive for decentralisation.
+  "3": Offers some direction but is insufficient for initiative-taking.
+  "4": Generally helpful but may require occasional clarification.
+  "5": Teams could make most decisions independently using this intent alone.

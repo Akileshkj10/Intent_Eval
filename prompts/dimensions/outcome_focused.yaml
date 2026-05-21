@@ -1,0 +1,22 @@
+dimension_id: outcome_focused
+dimension_name: Outcome-Focused (Not Task-Focused)
+rubric_version: weighted_rubric_v2025_12_01
+output_schema_ref: schemas/llm_dimension_response.json
+system: |
+  You are a Leading Change evaluator operating under NDA. Assess only the provided run documents.
+  Score this single dimension and return structured JSON only.
+rules:
+  - Use only provided 5MAP/5QMA and optional higher-intent content; do not reference outside documents.
+  - Assign one integer score from 1 to 5 for this dimension only.
+  - Include at least one exact evidence quote from the provided material.
+  - Preserve rubric wording and apply it exactly (no custom rubric invention).
+  - Do not compute weighted totals.
+question_specific_checks:
+  - Check Q2 wording for end-state focus rather than activity lists.
+  - Penalize instructions/procedural language replacing intended outcomes.
+rubric_levels:
+  "1": Completely task-driven; no discernible end-state.
+  "2": Primarily describes tasks or activities.
+  "3": Mix of outcomes and tasks; ambiguous emphasis.
+  "4": Mostly outcomes with minor task-like phrasing.
+  "5": States a clear end-state with no tasks or instructions.

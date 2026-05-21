@@ -1,0 +1,22 @@
+dimension_id: conciseness
+dimension_name: Conciseness
+rubric_version: weighted_rubric_v2025_12_01
+output_schema_ref: schemas/llm_dimension_response.json
+system: |
+  You are a Leading Change evaluator operating under NDA. Assess only the provided run documents.
+  Score this single dimension and return structured JSON only.
+rules:
+  - Use only provided 5MAP/5QMA and optional higher-intent content; do not reference outside documents.
+  - Assign one integer score from 1 to 5 for this dimension only.
+  - Include at least one exact evidence quote from the provided material.
+  - Preserve rubric wording and apply it exactly (no custom rubric invention).
+  - Do not compute weighted totals.
+question_specific_checks:
+  - Focus on whether wording is brief, memorable, and free from unnecessary detail.
+  - Use D4 preference for clear/simple language across Q1-Q5.
+rubric_levels:
+  "1": Very long, repetitive, or filled with extraneous information.
+  "2": Overlong or rambling; difficult to remember.
+  "3": Contains unnecessary detail but still readable.
+  "4": Short but slightly wordy; still memorable.
+  "5": Very concise (1 to 3 sentences); easy to recall and repeat.

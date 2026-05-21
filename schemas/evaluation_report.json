@@ -1,0 +1,360 @@
+{
+  "$defs": {
+    "AppendixRationaleRow": {
+      "description": "Appendix A rationale row for one dimension.",
+      "properties": {
+        "dimension_id": {
+          "minLength": 1,
+          "title": "Dimension Id",
+          "type": "string"
+        },
+        "section": {
+          "minLength": 1,
+          "title": "Section",
+          "type": "string"
+        },
+        "score": {
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Score",
+          "type": "integer"
+        },
+        "weighted_score": {
+          "maximum": 5.0,
+          "minimum": 0.0,
+          "title": "Weighted Score",
+          "type": "number"
+        },
+        "rationale": {
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "title": "Evidence",
+          "type": "array"
+        }
+      },
+      "required": [
+        "dimension_id",
+        "section",
+        "score",
+        "weighted_score",
+        "rationale"
+      ],
+      "title": "AppendixRationaleRow",
+      "type": "object"
+    },
+    "DimensionScoreRow": {
+      "description": "One row in the dimension score table.",
+      "properties": {
+        "dimension_id": {
+          "minLength": 1,
+          "title": "Dimension Id",
+          "type": "string"
+        },
+        "dimension_name": {
+          "minLength": 1,
+          "title": "Dimension Name",
+          "type": "string"
+        },
+        "weight": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Weight",
+          "type": "number"
+        },
+        "score": {
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Score",
+          "type": "integer"
+        },
+        "weighted_score": {
+          "maximum": 5.0,
+          "minimum": 0.0,
+          "title": "Weighted Score",
+          "type": "number"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/EvidenceRef"
+          },
+          "title": "Evidence",
+          "type": "array"
+        }
+      },
+      "required": [
+        "dimension_id",
+        "dimension_name",
+        "weight",
+        "score",
+        "weighted_score"
+      ],
+      "title": "DimensionScoreRow",
+      "type": "object"
+    },
+    "EvidenceRef": {
+      "description": "Evidence reference for table rows and rationales.",
+      "properties": {
+        "quote": {
+          "minLength": 1,
+          "title": "Quote",
+          "type": "string"
+        },
+        "source_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Ref"
+        }
+      },
+      "required": [
+        "quote"
+      ],
+      "title": "EvidenceRef",
+      "type": "object"
+    },
+    "QuestionCommentary": {
+      "description": "Structured commentary block for each 5MAP question.",
+      "properties": {
+        "question_label": {
+          "minLength": 1,
+          "title": "Question Label",
+          "type": "string"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "maximum": 5,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score"
+        },
+        "strengths": {
+          "minLength": 1,
+          "title": "Strengths",
+          "type": "string"
+        },
+        "gaps_risks": {
+          "minLength": 1,
+          "title": "Gaps Risks",
+          "type": "string"
+        },
+        "suggested_improvements": {
+          "minLength": 1,
+          "title": "Suggested Improvements",
+          "type": "string"
+        }
+      },
+      "required": [
+        "question_label",
+        "strengths",
+        "gaps_risks",
+        "suggested_improvements"
+      ],
+      "title": "QuestionCommentary",
+      "type": "object"
+    },
+    "TotalWeightedScoreTable": {
+      "description": "Section subtotals and overall weighted total.",
+      "properties": {
+        "section_a_total": {
+          "maximum": 2.0,
+          "minimum": 0.0,
+          "title": "Section A Total",
+          "type": "number"
+        },
+        "section_b_total": {
+          "maximum": 1.5,
+          "minimum": 0.0,
+          "title": "Section B Total",
+          "type": "number"
+        },
+        "section_c_total": {
+          "maximum": 1.5,
+          "minimum": 0.0,
+          "title": "Section C Total",
+          "type": "number"
+        },
+        "total_weighted_score": {
+          "maximum": 5.0,
+          "minimum": 0.0,
+          "title": "Total Weighted Score",
+          "type": "number"
+        },
+        "interpretation_band": {
+          "minLength": 1,
+          "title": "Interpretation Band",
+          "type": "string"
+        }
+      },
+      "required": [
+        "section_a_total",
+        "section_b_total",
+        "section_c_total",
+        "total_weighted_score",
+        "interpretation_band"
+      ],
+      "title": "TotalWeightedScoreTable",
+      "type": "object"
+    }
+  },
+  "description": "Canonical evaluation report with required 14 sections.",
+  "properties": {
+    "run_id": {
+      "minLength": 1,
+      "title": "Run Id",
+      "type": "string"
+    },
+    "map_title": {
+      "minLength": 1,
+      "title": "Map Title",
+      "type": "string"
+    },
+    "rubric_version": {
+      "minLength": 1,
+      "title": "Rubric Version",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "report_title": {
+      "default": "EVALUATION REPORT",
+      "minLength": 1,
+      "title": "Report Title",
+      "type": "string"
+    },
+    "executive_summary": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Executive Summary",
+      "type": "string"
+    },
+    "purpose_of_briefing_note": {
+      "minLength": 1,
+      "title": "Purpose Of Briefing Note",
+      "type": "string"
+    },
+    "alignment_to_higher_intent": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Alignment To Higher Intent"
+    },
+    "dimension_scores_table": {
+      "items": {
+        "$ref": "#/$defs/DimensionScoreRow"
+      },
+      "minItems": 1,
+      "title": "Dimension Scores Table",
+      "type": "array"
+    },
+    "total_weighted_score_table": {
+      "$ref": "#/$defs/TotalWeightedScoreTable"
+    },
+    "commentary_by_question_intro": {
+      "minLength": 1,
+      "title": "Commentary By Question Intro",
+      "type": "string"
+    },
+    "q1_context_and_higher_intent": {
+      "$ref": "#/$defs/QuestionCommentary"
+    },
+    "q2_intent_and_measures_of_success": {
+      "$ref": "#/$defs/QuestionCommentary"
+    },
+    "q3_tasks_and_main_effort": {
+      "$ref": "#/$defs/QuestionCommentary"
+    },
+    "q4_boundaries_freedoms_and_constraints": {
+      "$ref": "#/$defs/QuestionCommentary"
+    },
+    "q5_achievability_and_backbrief_readiness": {
+      "$ref": "#/$defs/QuestionCommentary"
+    },
+    "overall_assessment": {
+      "minLength": 1,
+      "title": "Overall Assessment",
+      "type": "string"
+    },
+    "appendix_a_scoring_rationale": {
+      "items": {
+        "$ref": "#/$defs/AppendixRationaleRow"
+      },
+      "minItems": 1,
+      "title": "Appendix A Scoring Rationale",
+      "type": "array"
+    },
+    "key_strengths": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "optional_legacy: true",
+      "title": "Key Strengths"
+    },
+    "bottom_line": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "optional_legacy: true",
+      "title": "Bottom Line"
+    }
+  },
+  "required": [
+    "run_id",
+    "map_title",
+    "rubric_version",
+    "created_at",
+    "executive_summary",
+    "purpose_of_briefing_note",
+    "dimension_scores_table",
+    "total_weighted_score_table",
+    "commentary_by_question_intro",
+    "q1_context_and_higher_intent",
+    "q2_intent_and_measures_of_success",
+    "q3_tasks_and_main_effort",
+    "q4_boundaries_freedoms_and_constraints",
+    "q5_achievability_and_backbrief_readiness",
+    "overall_assessment",
+    "appendix_a_scoring_rationale"
+  ],
+  "title": "EvaluationReport",
+  "type": "object"
+}

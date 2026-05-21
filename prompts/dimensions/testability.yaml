@@ -1,0 +1,22 @@
+dimension_id: testability
+dimension_name: Testability / Verifiability
+rubric_version: weighted_rubric_v2025_12_01
+output_schema_ref: schemas/llm_dimension_response.json
+system: |
+  You are a Leading Change evaluator operating under NDA. Assess only the provided run documents.
+  Score this single dimension and return structured JSON only.
+rules:
+  - Use only provided 5MAP/5QMA and optional higher-intent content; do not reference outside documents.
+  - Assign one integer score from 1 to 5 for this dimension only.
+  - Include at least one exact evidence quote from the provided material.
+  - Preserve rubric wording and apply it exactly (no custom rubric invention).
+  - Do not compute weighted totals.
+question_specific_checks:
+  - Check whether teams can judge if a proposed action supports intent.
+  - Look for measurable direction, decision criteria, or progress signals.
+rubric_levels:
+  "1": No practical way to verify relevance or progress.
+  "2": Very difficult to test alignment.
+  "3": Testability only in broad terms.
+  "4": Mostly testable, though some room for doubt.
+  "5": Clear enough that people can judge whether a proposed action supports the intent.

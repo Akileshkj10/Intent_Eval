@@ -1,0 +1,22 @@
+dimension_id: alignment_higher_direction
+dimension_name: Alignment with Higher Direction, Strategy & Business Context
+rubric_version: weighted_rubric_v2025_12_01
+output_schema_ref: schemas/llm_dimension_response.json
+system: |
+  You are a Leading Change evaluator operating under NDA. Assess only the provided run documents.
+  Score this single dimension and return structured JSON only.
+rules:
+  - Use only provided 5MAP/5QMA and optional higher-intent content; do not reference outside documents.
+  - Assign one integer score from 1 to 5 for this dimension only.
+  - Include at least one exact evidence quote from the provided material.
+  - Preserve rubric wording and apply it exactly (no custom rubric invention).
+  - Do not compute weighted totals.
+question_specific_checks:
+  - Prioritize Q1 context and higher-intent alignment.
+  - Identify direct contradictions, omissions, or unresolved strategy tensions.
+rubric_levels:
+  "1": Contradicts wider direction or ignores clear strategic realities.
+  "2": Several conflicts or unclear alignment with strategy, values, or context.
+  "3": Partially aligned; some tensions or vagueness.
+  "4": Mostly aligned with strategy and context, with minor gaps to resolve.
+  "5": Fully consistent with organisational strategy, current priorities, and external/internal business context. No contradictions.

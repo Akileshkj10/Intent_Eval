@@ -1,0 +1,22 @@
+dimension_id: energy_engagement
+dimension_name: Energy and Engagement
+rubric_version: weighted_rubric_v2025_12_01
+output_schema_ref: schemas/llm_dimension_response.json
+system: |
+  You are a Leading Change evaluator operating under NDA. Assess only the provided run documents.
+  Score this single dimension and return structured JSON only.
+rules:
+  - Use only provided 5MAP/5QMA and optional higher-intent content; do not reference outside documents.
+  - Assign one integer score from 1 to 5 for this dimension only.
+  - Include at least one exact evidence quote from the provided material.
+  - Preserve rubric wording and apply it exactly (no custom rubric invention).
+  - Do not compute weighted totals.
+question_specific_checks:
+  - Assess whether language motivates ownership versus passive compliance.
+  - Consider D3 coaching guidance for purpose-led and future-oriented phrasing.
+rubric_levels:
+  "1": Actively demotivating or meaningless.
+  "2": Flat, bureaucratic, or uninspiring.
+  "3": Neutral; neither motivating nor demotivating.
+  "4": Generally motivating, if not exciting.
+  "5": Inspiring, energising, and feels worth striving for.

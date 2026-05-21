@@ -1,0 +1,154 @@
+{
+  "version": "weighted_rubric_v2025_12_01",
+  "max_score": 5.0,
+  "dimensions": [
+    {
+      "id": "clarity_outcome",
+      "name": "Clarity of Outcome (What)",
+      "section": "A",
+      "weight": 0.2,
+      "formula": "score * 0.20",
+      "levels": {
+        "1": "No real outcome is stated.",
+        "2": "Outcome is vague, abstract, or expressed as a broad aspiration.",
+        "3": "Some clarity, but interpretation varies across readers.",
+        "4": "Outcome is mostly clear, with minimal room for interpretation.",
+        "5": "Outcome is explicit, concrete, and unambiguous; anyone can restate it accurately."
+      }
+    },
+    {
+      "id": "clarity_purpose",
+      "name": "Clarity of Purpose (Why)",
+      "section": "A",
+      "weight": 0.2,
+      "formula": "score * 0.20",
+      "levels": {
+        "1": "No purpose is provided.",
+        "2": "Purpose is generic or disconnected from the real mission.",
+        "3": "Purpose is implied but not explicit.",
+        "4": "Purpose is stated and mostly clear, though not inspiring.",
+        "5": "Purpose compellingly explains why the outcome matters and connects to the larger mission."
+      }
+    },
+    {
+      "id": "alignment_higher_direction",
+      "name": "Alignment with Higher Direction, Strategy & Business Context",
+      "section": "B",
+      "weight": 0.15,
+      "formula": "score * 0.15",
+      "levels": {
+        "1": "Contradicts wider direction or ignores clear strategic realities.",
+        "2": "Several conflicts or unclear alignment with strategy, values, or context.",
+        "3": "Partially aligned; some tensions or vagueness.",
+        "4": "Mostly aligned with strategy and context, with minor gaps to resolve.",
+        "5": "Fully consistent with organisational strategy, current priorities, and external/internal business context. No contradictions."
+      }
+    },
+    {
+      "id": "alignment_tasks",
+      "name": "Alignment of 5MAP Priorities/Tasks with Intent",
+      "section": "B",
+      "weight": 0.15,
+      "formula": "score * 0.15",
+      "levels": {
+        "1": "5MAP tasks do not relate to the intent or contradict it.",
+        "2": "Tasks are largely procedural and weakly linked to intent outcomes.",
+        "3": "Some tasks relate well; others are weakly linked or ambiguous.",
+        "4": "Most tasks are aligned and provide reasonable line-of-sight to intent.",
+        "5": "Downstream tasks clearly express how the team will advance the intent; strong line-of-sight from intent to priorities to tasks."
+      }
+    },
+    {
+      "id": "conciseness",
+      "name": "Conciseness",
+      "section": "C",
+      "weight": 0.06,
+      "formula": "score * 0.06",
+      "levels": {
+        "1": "Very long, repetitive, or filled with extraneous information.",
+        "2": "Overlong or rambling; difficult to remember.",
+        "3": "Contains unnecessary detail but still readable.",
+        "4": "Short but slightly wordy; still memorable.",
+        "5": "Very concise (1 to 3 sentences); easy to recall and repeat."
+      }
+    },
+    {
+      "id": "outcome_focused",
+      "name": "Outcome-Focused (Not Task-Focused)",
+      "section": "C",
+      "weight": 0.06,
+      "formula": "score * 0.06",
+      "levels": {
+        "1": "Completely task-driven; no discernible end-state.",
+        "2": "Primarily describes tasks or activities.",
+        "3": "Mix of outcomes and tasks; ambiguous emphasis.",
+        "4": "Mostly outcomes with minor task-like phrasing.",
+        "5": "States a clear end-state with no tasks or instructions."
+      }
+    },
+    {
+      "id": "decentralised_utility",
+      "name": "Utility for Decentralised Decision-Making",
+      "section": "C",
+      "weight": 0.06,
+      "formula": "score * 0.06",
+      "levels": {
+        "1": "Provides no help for empowerment; requires constant oversight.",
+        "2": "Too vague or too prescriptive for decentralisation.",
+        "3": "Offers some direction but is insufficient for initiative-taking.",
+        "4": "Generally helpful but may require occasional clarification.",
+        "5": "Teams could make most decisions independently using this intent alone."
+      }
+    },
+    {
+      "id": "testability",
+      "name": "Testability / Verifiability",
+      "section": "C",
+      "weight": 0.06,
+      "formula": "score * 0.06",
+      "levels": {
+        "1": "No practical way to verify relevance or progress.",
+        "2": "Very difficult to test alignment.",
+        "3": "Testability only in broad terms.",
+        "4": "Mostly testable, though some room for doubt.",
+        "5": "Clear enough that people can judge whether a proposed action supports the intent."
+      }
+    },
+    {
+      "id": "energy_engagement",
+      "name": "Energy and Engagement",
+      "section": "C",
+      "weight": 0.06,
+      "formula": "score * 0.06",
+      "levels": {
+        "1": "Actively demotivating or meaningless.",
+        "2": "Flat, bureaucratic, or uninspiring.",
+        "3": "Neutral; neither motivating nor demotivating.",
+        "4": "Generally motivating, if not exciting.",
+        "5": "Inspiring, energising, and feels worth striving for."
+      }
+    }
+  ],
+  "interpretation_bands": [
+    {
+      "min": 4.5,
+      "max": 5.0,
+      "label": "Exceptional intent, ready for operational use."
+    },
+    {
+      "min": 4.0,
+      "max": 4.4,
+      "label": "Strong; may benefit from light refinement."
+    },
+    {
+      "min": 3.0,
+      "max": 3.9,
+      "label": "Adequate; usable but requires improvement."
+    },
+    {
+      "min": 0.0,
+      "max": 2.99,
+      "label": "Weak; intent should be rewritten."
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+dimension_id: clarity_outcome
+dimension_name: Clarity of Outcome (What)
+rubric_version: weighted_rubric_v2025_12_01
+output_schema_ref: schemas/llm_dimension_response.json
+system: |
+  You are a Leading Change evaluator operating under NDA. Assess only the provided run documents.
+  Score this single dimension and return structured JSON only.
+rules:
+  - Use only provided 5MAP/5QMA and optional higher-intent content; do not reference outside documents.
+  - Assign one integer score from 1 to 5 for this dimension only.
+  - Include at least one exact evidence quote from the provided material.
+  - Preserve rubric wording and apply it exactly (no custom rubric invention).
+  - Do not compute weighted totals.
+question_specific_checks:
+  - Prioritize Q2 intent wording; confirm the outcome ("what") is explicit and unambiguous.
+  - Penalize broad aspiration language that cannot be restated consistently.
+rubric_levels:
+  "1": No real outcome is stated.
+  "2": Outcome is vague, abstract, or expressed as a broad aspiration.
+  "3": Some clarity, but interpretation varies across readers.
+  "4": Outcome is mostly clear, with minimal room for interpretation.
+  "5": Outcome is explicit, concrete, and unambiguous; anyone can restate it accurately.

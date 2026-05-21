@@ -1,0 +1,54 @@
+{
+  "_schema_note": "Populated in P1-T03. dimension_scores use integer 1-5 only. See docs/gold_example_simplification.md.",
+  "map_title": "Simplification 5QMA",
+  "source": "Gmail INTENT EVALUATOR May 8 2026",
+  "rubric_version": "weighted_rubric_v2025_12_01",
+  "higher_intent_provided": true,
+  "dimension_scores": [
+    {
+      "dimension_id": "clarity_outcome",
+      "score": 4,
+      "evidence_quotes": [
+        {
+          "quote": "remove friction and create operational headroom for transformation and growth",
+          "slide_id": "5QMA Simplification# | PowerPoint"
+        }
+      ]
+    },
+    {
+      "dimension_id": "clarity_purpose",
+      "score": 4,
+      "evidence_quotes": [
+        {
+          "quote": "capacity is released for growth and transformation at pace",
+          "slide_id": "Intent for...kshop.pptx"
+        }
+      ]
+    },
+    {
+      "dimension_id": "alignment_higher_direction",
+      "score": 5,
+      "evidence_quotes": [
+        {
+          "quote": "simplify where we must",
+          "slide_id": "Intent for...kshop.pptx"
+        }
+      ]
+    },
+    { "dimension_id": "alignment_tasks", "score": 3 },
+    { "dimension_id": "conciseness", "score": 3 },
+    { "dimension_id": "outcome_focused", "score": 3 },
+    { "dimension_id": "decentralised_utility", "score": 3 },
+    { "dimension_id": "testability", "score": 3 },
+    { "dimension_id": "energy_engagement", "score": 2 }
+  ],
+  "expected_section_totals": {
+    "A": 1.6,
+    "B": 1.2,
+    "C": 0.84
+  },
+  "expected_total_min": 3.64,
+  "expected_total_max": 3.8,
+  "expected_display_total": 3.8,
+  "expected_band": "adequate"
+}

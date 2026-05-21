@@ -1,0 +1,40 @@
+version: '2025-12-01'
+policy: Keep originals in OneDrive_1_5-21-2026; do not duplicate PDFs in repo
+documents:
+- id: D1
+  path: OneDrive_1_5-21-2026/SINGLE CANONICAL SOURCE FOR THE INTENT WIZARD AGENT.docx
+  description: Authoritative prompt, weighted rubric, 14-section report
+  sha256: c6bf9a5fd56494edca6646fbe2e42c0ff969e8325969421cee246bf262c044eb
+  extracted_text: OneDrive_1_5-21-2026/SINGLE CANONICAL SOURCE FOR THE INTENT WIZARD
+    AGENT_extracted.txt
+- id: D2
+  path: OneDrive_1_5-21-2026/Organisational Intent Statement Rubric 01 Dec 25.docx
+  description: 1-5 descriptors per dimension (calibration)
+  sha256: ade54f3052ab7d9086150319f915449cc92add9b88a61078160ca888355c9479
+  extracted_text: OneDrive_1_5-21-2026/Organisational Intent Statement Rubric 01 Dec
+    25_extracted.txt
+- id: D3
+  path: OneDrive_1_5-21-2026/Intent Quality Criteria 01 Dec 25.pdf
+  description: Nine internal quality criteria
+  sha256: b6a5f0ebb6e0f1fb71b83c4d1e1d096bf617a22365e6f2936568ff85573e584a
+  extracted_text: null
+- id: D4
+  path: OneDrive_1_5-21-2026/5MAP Coaching Guide Release 5.0.pdf
+  description: Q1-Q5 coaching and checklist
+  sha256: 4c134a1a24611c0d61465acfd623c52464922bef2bec5791fa2db038e3db8e1f
+  extracted_text: null
+- id: D5
+  path: OneDrive_1_5-21-2026/Generic Briefing Notes for Intent Statements Sep 2022.pdf
+  description: Client-facing intent education
+  sha256: 8de18bc4f5b1c6d628f4c8caa484fdd20b81ea54e95c416dcf49f6c515cab0a8
+  extracted_text: null
+- id: D6
+  path: OneDrive_1_5-21-2026/Agent Builder's instructions.docx
+  description: Copilot agent tone and workflow
+  sha256: ee73999b238384ae5d8305f8903c886b455b7351a24bbee5cd8f184dd80f162c
+  extracted_text: OneDrive_1_5-21-2026/Agent Builder's instructions_extracted.txt
+- id: D7
+  path: OneDrive_1_5-21-2026/5MAP Agent Report Template.docx
+  description: Deferred Word layout reference
+  sha256: 282bfec5776410b2c776e46e5b85e9a876c1b973c1210aeb53378ab3e04d2108
+  extracted_text: OneDrive_1_5-21-2026/5MAP Agent Report Template_extracted.txt
