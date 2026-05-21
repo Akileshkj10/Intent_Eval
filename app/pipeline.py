@@ -7,10 +7,25 @@ import io
 import json
 import textwrap
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
+from intent_evaluator.eval.run_manifest import (
+    append_report_footer,
+    build_run_manifest,
+    write_run_manifest,
+)
+from intent_evaluator.llm.client import LLMClient
 from intent_evaluator.cli import main as cli_main
-from intent_evaluator.parsing import parse_text_input
+from intent_evaluator.parsing import parse_higher_intent, parse_pptx, parse_text_input
+from intent_evaluator.parsing.schema import FiveMapDocument
+from intent_evaluator.report.assembler import build_report_skeleton
+from intent_evaluator.report.render_markdown import render as render_markdown
+from intent_evaluator.report.schema import EvaluationReport, QuestionCommentary
+from intent_evaluator.rubric.load import load_rubric
+from intent_evaluator.rubric.models import Scorecard
+from intent_evaluator.scoring.calculator import interpretation_band, section_totals, total_weighted_score
+from intent_evaluator.scoring.dimension_scorer import score_all_dimensions
 
 
 def project_root() -> Path:
@@ -19,6 +34,20 @@ def project_root() -> Path:
 
 def outputs_root() -> Path:
     return project_root() / "outputs"
+
+
+def _default_rubric_path() -> Path:
+    return project_root() / "rubrics" / "weighted_rubric_v2025_12_01.json"
+
+
+def _file_sha256(path: Path) -> str:
+    import hashlib
+
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def create_session_output_dir(session_id: str | None = None) -> Path:
@@ -153,6 +182,146 @@ def write_report_pdf(report_md_path: Path) -> Path:
     return pdf_path
 
 
+def _question_block(label: str, text: str, score: int | None = None) -> QuestionCommentary:
+    clipped = text.strip()
+    if len(clipped) > 420:
+        clipped = clipped[:417].rstrip() + "..."
+    return QuestionCommentary(
+        question_label=label,
+        score=score,
+        strengths=f"Source text provides usable material for {label}: {clipped}",
+        gaps_risks="Review the scored dimensions and evidence table for the main quality gaps.",
+        suggested_improvements="Sharpen wording, decision rights, measures of success, and evidence where the score is below 4.",
+    )
+
+
+def _populate_fast_narrative(report: EvaluationReport, map_doc: FiveMapDocument) -> EvaluationReport:
+    total = report.total_weighted_score_table.total_weighted_score
+    band = report.total_weighted_score_table.interpretation_band
+    low_rows = [row for row in report.dimension_scores_table if row.score < 3]
+    high_rows = [row for row in report.dimension_scores_table if row.score >= 4]
+    low_text = ", ".join(row.dimension_name for row in low_rows) or "no dimensions below 3"
+    high_text = ", ".join(row.dimension_name for row in high_rows) or "no dimensions at 4 or above"
+    scores = {row.dimension_id: row.score for row in report.dimension_scores_table}
+
+    report.executive_summary = (
+        f"This 5MAP scored {total:.2f}/5.00, placing it in the band: {band}. "
+        f"Relative strengths: {high_text}. Priority improvement areas: {low_text}. "
+        "The score is based on live Claude rubric evaluation; this fast pilot report uses "
+        "deterministic narrative so the UI returns promptly."
+    )
+    report.purpose_of_briefing_note = (
+        "This briefing note summarises live rubric scoring and evidence for the submitted 5MAP. "
+        "It is intended for consultant review before any client-facing use."
+    )
+    report.alignment_to_higher_intent = (
+        "Review Q1 and the alignment dimensions to confirm whether the 5MAP clearly links local intent "
+        "to higher direction, strategy, and business context."
+    )
+    report.commentary_by_question_intro = (
+        "The commentary below is generated deterministically from the parsed Q1-Q5 sections and live "
+        "dimension scores. Use it as a quick review pack while refining the final consultant narrative."
+    )
+    report.q1_context_and_higher_intent = _question_block(
+        "Q1 Context and Higher Intent",
+        map_doc.sections.q1_context,
+        scores.get("alignment_higher_direction"),
+    )
+    report.q2_intent_and_measures_of_success = _question_block(
+        "Q2 Intent and Measures of Success",
+        map_doc.sections.q2_intent,
+        min(scores.get("clarity_outcome", 1), scores.get("clarity_purpose", 1)),
+    )
+    report.q3_tasks_and_main_effort = _question_block(
+        "Q3 Tasks and Main Effort",
+        map_doc.sections.q3_tasks,
+        scores.get("alignment_tasks"),
+    )
+    report.q4_boundaries_freedoms_and_constraints = _question_block(
+        "Q4 Boundaries (Freedoms and Constraints)",
+        map_doc.sections.q4_boundaries,
+        scores.get("decentralised_utility"),
+    )
+    report.q5_achievability_and_backbrief_readiness = _question_block(
+        "Q5 Achievability & Back Brief Readiness",
+        map_doc.sections.q5_backbrief,
+        scores.get("testability"),
+    )
+    report.overall_assessment = (
+        f"Overall assessment: {band}. Focus improvement effort on dimensions scoring below 3 first, "
+        "then strengthen any 3-scored dimensions before using the report externally."
+    )
+    for row in report.appendix_a_scoring_rationale:
+        evidence = row.evidence[0].quote if row.evidence else "No evidence quote supplied."
+        row.rationale = (
+            f"Live Claude assigned {row.score}/5 for {row.dimension_id}. "
+            f"Representative evidence: \"{evidence}\""
+        )
+    return report
+
+
+def _run_live_scoring_fast_report(
+    map_path: Path, session_dir: Path, higher_intent_path: Path | None = None
+) -> dict:
+    rubric = load_rubric(_default_rubric_path())
+    map_doc = parse_pptx(map_path)
+    higher_intent = parse_higher_intent(higher_intent_path) if higher_intent_path else None
+    client = LLMClient.from_settings(outputs_root=outputs_root())
+    run_id = session_dir.name
+
+    scorecard = score_all_dimensions(
+        map_doc=map_doc,
+        higher_intent=higher_intent,
+        rubric=rubric,
+        llm_client=client,
+        run_id=run_id,
+    )
+
+    parsed_json_path = session_dir / "parsed.json"
+    scorecard_json_path = session_dir / "scorecard.json"
+    report_json_path = session_dir / "report.json"
+    report_md_path = session_dir / "report.md"
+    parsed_json_path.write_text(map_doc.model_dump_json(indent=2), encoding="utf-8")
+    scorecard_json_path.write_text(scorecard.model_dump_json(indent=2), encoding="utf-8")
+
+    report = build_report_skeleton(
+        scorecard=scorecard,
+        rubric=rubric,
+        five_map_document=map_doc,
+        higher_intent_document=higher_intent,
+    )
+    report = _populate_fast_narrative(report, map_doc)
+    report_payload = report.model_dump(mode="json")
+    report_payload["source_map_hash"] = _file_sha256(map_path)
+    report_json_path.write_text(json.dumps(report_payload, indent=2) + "\n", encoding="utf-8")
+    report_md_path.write_text(render_markdown(report), encoding="utf-8")
+    manifest = build_run_manifest(
+        run_id=run_id,
+        rubric_version=rubric.version,
+        model_id=client.settings.important_evaluator_model,
+        input_sha256=_file_sha256(map_path),
+        output_dir=session_dir,
+    )
+    write_run_manifest(session_dir, manifest)
+    append_report_footer(report_md_path, manifest)
+    EvaluationReport.model_validate(report_payload)
+
+    total = total_weighted_score(scorecard, rubric)
+    band = interpretation_band(total, rubric)
+    _ = section_totals(scorecard, rubric)
+    report_pdf_path = write_report_pdf(report_md_path)
+    return {
+        "report_json_path": report_json_path,
+        "report_md_path": report_md_path,
+        "report_pdf_path": report_pdf_path,
+        "parsed_json_path": parsed_json_path,
+        "total_weighted_score": total,
+        "interpretation_band": band,
+        "session_dir": session_dir,
+        "low_confidence_sections": map_doc.low_confidence_sections,
+    }
+
+
 def run_ui_pipeline(
     map_path: Path,
     session_dir: Path,
@@ -166,18 +335,7 @@ def run_ui_pipeline(
         _assert_within_outputs(higher_intent_path)
 
     if use_llm:
-        args = [
-            "evaluate",
-            "--input",
-            str(map_path),
-            "--out",
-            str(outputs_root()),
-            "--run-id",
-            session_dir.name,
-            "--llm",
-        ]
-        if higher_intent_path:
-            args.extend(["--higher-intent", str(higher_intent_path)])
+        return _run_live_scoring_fast_report(map_path, session_dir, higher_intent_path)
     else:
         args = [
             "report",
