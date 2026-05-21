@@ -24,8 +24,10 @@ def test_p6a_t2_text_input_generates_report_without_upload() -> None:
 
     assert result["report_md_path"].exists()
     assert result["report_json_path"].exists()
+    assert result["report_pdf_path"].exists()
     assert result["parsed_json_path"].exists()
     assert result["low_confidence_sections"] is False
+    assert result["report_pdf_path"].read_bytes().startswith(b"%PDF-")
 
 
 def test_p6a_t2_text_input_writes_only_inside_outputs_session() -> None:

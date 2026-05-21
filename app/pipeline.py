@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import textwrap
 import uuid
 from pathlib import Path
 
@@ -67,6 +68,91 @@ def _assert_within_outputs(path: Path) -> None:
         raise RuntimeError(f"Path escapes outputs directory: {resolved}")
 
 
+def _pdf_escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def _wrap_pdf_lines(markdown: str, width: int = 92) -> list[str]:
+    lines: list[str] = []
+    for raw_line in markdown.splitlines():
+        line = raw_line.strip()
+        if not line:
+            lines.append("")
+            continue
+        if line.startswith("#"):
+            line = line.lstrip("#").strip().upper()
+        wrapped = textwrap.wrap(line, width=width, replace_whitespace=False) or [""]
+        lines.extend(wrapped)
+    return lines
+
+
+def _build_text_pdf(markdown: str) -> bytes:
+    """Build a simple text-only PDF from report markdown without external binaries."""
+    lines = _wrap_pdf_lines(markdown)
+    lines_per_page = 52
+    pages = [lines[index : index + lines_per_page] for index in range(0, len(lines), lines_per_page)]
+    if not pages:
+        pages = [[""]]
+
+    objects: list[bytes] = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"",  # Filled after page object numbers are known.
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    page_object_numbers: list[int] = []
+
+    for page_lines in pages:
+        content_lines = ["BT", "/F1 10 Tf", "50 790 Td", "14 TL"]
+        for line in page_lines:
+            safe = _pdf_escape(line).encode("latin-1", errors="replace").decode("latin-1")
+            content_lines.append(f"({safe}) Tj")
+            content_lines.append("T*")
+        content_lines.append("ET")
+        content = "\n".join(content_lines).encode("latin-1", errors="replace")
+        stream = b"<< /Length " + str(len(content)).encode("ascii") + b" >>\nstream\n" + content + b"\nendstream"
+        content_obj_num = len(objects) + 1
+        objects.append(stream)
+        page_obj_num = len(objects) + 1
+        page_object_numbers.append(page_obj_num)
+        page = (
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            f"/Resources << /Font << /F1 3 0 R >> >> /Contents {content_obj_num} 0 R >>"
+        ).encode("ascii")
+        objects.append(page)
+
+    kids = " ".join(f"{number} 0 R" for number in page_object_numbers)
+    objects[1] = f"<< /Type /Pages /Kids [{kids}] /Count {len(page_object_numbers)} >>".encode("ascii")
+
+    output = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0]
+    for index, obj in enumerate(objects, start=1):
+        offsets.append(len(output))
+        output.extend(f"{index} 0 obj\n".encode("ascii"))
+        output.extend(obj)
+        output.extend(b"\nendobj\n")
+    xref_offset = len(output)
+    output.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    output.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        output.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+    output.extend(
+        (
+            f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
+            f"startxref\n{xref_offset}\n%%EOF\n"
+        ).encode("ascii")
+    )
+    return bytes(output)
+
+
+def write_report_pdf(report_md_path: Path) -> Path:
+    """Write a simple PDF version beside `report.md`."""
+    pdf_path = report_md_path.with_suffix(".pdf")
+    _assert_within_outputs(pdf_path)
+    markdown = report_md_path.read_text(encoding="utf-8")
+    pdf_path.write_bytes(_build_text_pdf(markdown))
+    return pdf_path
+
+
 def run_ui_pipeline(
     map_path: Path,
     session_dir: Path,
@@ -120,9 +206,11 @@ def run_ui_pipeline(
     parsed_json_path = session_dir / "parsed.json"
     payload = json.loads(report_json_path.read_text(encoding="utf-8"))
     parsed_payload = json.loads(parsed_json_path.read_text(encoding="utf-8"))
+    report_pdf_path = write_report_pdf(report_md_path)
     return {
         "report_json_path": report_json_path,
         "report_md_path": report_md_path,
+        "report_pdf_path": report_pdf_path,
         "parsed_json_path": parsed_json_path,
         "total_weighted_score": payload["total_weighted_score_table"]["total_weighted_score"],
         "interpretation_band": payload["total_weighted_score_table"]["interpretation_band"],

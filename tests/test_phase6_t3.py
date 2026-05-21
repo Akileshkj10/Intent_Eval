@@ -28,7 +28,9 @@ def test_t3_pipeline_generates_downloadable_report_from_synthetic_json(tmp_path:
     result = run_ui_pipeline(map_path=real_map, session_dir=real_session, use_llm=False)
     assert result["report_md_path"].exists()
     assert result["report_json_path"].exists()
+    assert result["report_pdf_path"].exists()
     assert result["parsed_json_path"].exists()
+    assert result["report_pdf_path"].read_bytes().startswith(b"%PDF-")
 
 
 def test_t3_no_files_outside_outputs_session_folder() -> None:

@@ -21,10 +21,9 @@ def main() -> None:
 
     with st.sidebar:
         st.header("Run options")
-        use_llm = st.toggle("Use live LLM scoring", value=False)
         st.markdown(
-            "When disabled, app uses offline demo mode with the gold scorecard fixture "
-            "for deterministic local report generation."
+            "**Live Claude scoring is mandatory.** Report generation can take a few minutes "
+            "because the app scores all dimensions and writes narrative sections."
         )
 
     input_mode = st.radio(
@@ -83,12 +82,13 @@ def main() -> None:
                     session_dir, higher_intent_file.name, higher_intent_file.getvalue()
                 )
 
-            result = run_ui_pipeline(
-                map_path=map_path,
-                session_dir=session_dir,
-                higher_intent_path=higher_path,
-                use_llm=use_llm,
-            )
+            with st.spinner("Generating report with live Claude scoring..."):
+                result = run_ui_pipeline(
+                    map_path=map_path,
+                    session_dir=session_dir,
+                    higher_intent_path=higher_path,
+                    use_llm=True,
+                )
         except Exception as exc:  # pragma: no cover - UI path
             st.error(f"Run failed: {exc}")
             return
@@ -102,6 +102,7 @@ def main() -> None:
 
         report_md = result["report_md_path"].read_text(encoding="utf-8")
         report_json = result["report_json_path"].read_text(encoding="utf-8")
+        report_pdf = result["report_pdf_path"].read_bytes()
         st.download_button(
             "Download report.md",
             data=report_md,
@@ -113,6 +114,12 @@ def main() -> None:
             data=report_json,
             file_name="report.json",
             mime="application/json",
+        )
+        st.download_button(
+            "Download report.pdf",
+            data=report_pdf,
+            file_name="report.pdf",
+            mime="application/pdf",
         )
         with st.expander("Preview report markdown"):
             st.code(report_md[:6000], language="markdown")
