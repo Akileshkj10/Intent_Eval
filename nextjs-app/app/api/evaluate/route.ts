@@ -31,8 +31,8 @@ export async function POST(req: NextRequest) {
     // Step 1 — identify sections
     const sections = await identifySections(text);
 
-    // Step 2 — score all 9 dimensions in one Claude call
-    const results = await scoreAllDimensions(sections);
+    // Step 2 — score all 9 dimensions + recommendations in one Claude call
+    const { results, recommendations } = await scoreAllDimensions(sections);
 
     // Step 3 — calculate totals
     const scoresMap = Object.fromEntries(results.map((r) => [r.id, r.score]));
@@ -48,13 +48,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       total: Math.round(total * 100) / 100,
       band,
-      sections: {
-        q1: sections.q1,
-        q2: sections.q2,
-        q3: sections.q3,
-        q4: sections.q4,
-        q5: sections.q5,
-      },
       dimensions: results,
       subtotals: Object.entries(subtotals).map(([key, value]) => ({
         label: SECTION_LABELS[key] ?? key,
@@ -62,6 +55,7 @@ export async function POST(req: NextRequest) {
       })),
       strengths,
       improvements,
+      recommendations,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

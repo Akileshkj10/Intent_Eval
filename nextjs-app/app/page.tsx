@@ -15,14 +15,22 @@ interface DimensionResult {
   keyEvidence: string;
 }
 
+interface Recommendation {
+  targetDimensionId: string;
+  targetDimensionName: string;
+  currentScore: number;
+  action: string;
+  expectedImpact: string;
+}
+
 interface EvalResult {
   total: number;
   band: string;
-  sections: { q1: string; q2: string; q3: string; q4: string; q5: string };
   dimensions: DimensionResult[];
   subtotals: { label: string; value: number }[];
   strengths: string[];
   improvements: string[];
+  recommendations: Recommendation[];
 }
 
 /* ── Helpers ────────────────────────────────────────────────────────────────── */
@@ -212,49 +220,67 @@ function Report({ result }: { result: EvalResult }) {
           </tbody>
         </table>
 
-        {/* 4. Q1-Q5 Commentary */}
-        <h2>4. Commentary by Question</h2>
-        {[
-          { key: "q1" as const, label: "Q1 — Context &amp; Higher Intent" },
-          { key: "q2" as const, label: "Q2 — Intent &amp; Measures of Success" },
-          { key: "q3" as const, label: "Q3 — Implied Tasks &amp; Main Effort" },
-          { key: "q4" as const, label: "Q4 — Boundaries" },
-          { key: "q5" as const, label: "Q5 — Achievability &amp; Backbrief" },
-        ].map(({ key, label }) => {
-          const content = result.sections[key];
-          if (!content?.trim()) return null;
-          return (
-            <div key={key} style={{ marginBottom: 20 }}>
-              <div
-                style={{
-                  fontFamily: "sans-serif",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "#374151",
-                  marginBottom: 6,
-                }}
-                dangerouslySetInnerHTML={{ __html: label }}
-              />
-              <div
-                style={{
-                  background: "#f8fafc",
-                  border: "1px solid #e2e8f0",
-                  borderLeft: "3px solid #94a3b8",
-                  borderRadius: 4,
-                  padding: "10px 14px",
-                  fontSize: 13,
-                  color: "#374151",
-                  whiteSpace: "pre-wrap",
-                  fontFamily: "sans-serif",
-                  maxHeight: 180,
-                  overflowY: "auto",
-                }}
-              >
-                {content.length > 600 ? content.slice(0, 600) + "…" : content}
-              </div>
-            </div>
-          );
-        })}
+        {/* 4. Targeted Improvement Recommendations */}
+        <h2>4. Targeted Improvement Recommendations</h2>
+        {result.recommendations.length === 0 ? (
+          <p style={{ fontStyle: "italic", color: "#4b5563" }}>
+            No high-impact improvements identified — this intent is already operating at a strong
+            standard across all dimensions.
+          </p>
+        ) : (
+          <div>
+            {result.recommendations.map((rec, idx) => {
+              const col = scoreColour(rec.currentScore);
+              return (
+                <div
+                  key={rec.targetDimensionId}
+                  style={{
+                    background: "#fafafa",
+                    border: "1px solid #e2e8f0",
+                    borderLeft: `3px solid ${col}`,
+                    borderRadius: 4,
+                    padding: "12px 16px",
+                    marginBottom: 12,
+                    fontFamily: "sans-serif",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "baseline",
+                      gap: 12,
+                      marginBottom: 6,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0f172a" }}>
+                      {idx + 1}. {rec.targetDimensionName}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: col, fontWeight: 600 }}>
+                      Currently {rec.currentScore}/5
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 13, color: "#1f2937", lineHeight: 1.55, marginBottom: 6 }}>
+                    {rec.action}
+                  </div>
+                  {rec.expectedImpact && (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontStyle: "italic",
+                        color: "#4b5563",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      Impact: {rec.expectedImpact}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* 5. Overall Assessment */}
         <h2>5. Overall Assessment</h2>
