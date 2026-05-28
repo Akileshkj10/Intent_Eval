@@ -21,3 +21,8 @@ OneDrive_1_5-21-2026/
 # Client confidential artefacts — never commit
 *.pptx
 tests/fixtures_client/
+
+# Next.js
+nextjs-app/.next/
+nextjs-app/node_modules/
+nextjs-app/.env.local
