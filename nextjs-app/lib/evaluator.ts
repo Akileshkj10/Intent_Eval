@@ -40,6 +40,58 @@ export interface ScoringPayload {
   recommendations: Recommendation[];
 }
 
+// ── Text cleanup helpers ─────────────────────────────────────────────────────
+
+/**
+ * Strip any quoted phrases that leak into a rationale despite prompt rules.
+ * Removes content inside '...', "...", "...", '...' and tidies the leftover
+ * punctuation so the sentence still reads naturally.
+ */
+function cleanRationale(text: string): string {
+  if (!text) return "";
+  let out = text.trim();
+
+  // Remove quoted phrases of all common quote types. Repeat until none remain.
+  const quotePatterns = [
+    /[\u2018\u2019][^\u2018\u2019]{1,80}[\u2018\u2019]/g, // curly single
+    /[\u201C\u201D][^\u201C\u201D]{1,120}[\u201C\u201D]/g, // curly double
+    /'[^']{1,80}'/g,                                       // straight single
+    /"[^"]{1,120}"/g,                                      // straight double
+  ];
+  let prev = "";
+  while (prev !== out) {
+    prev = out;
+    for (const re of quotePatterns) out = out.replace(re, "");
+  }
+
+  // Drop "e.g." / "such as" / "for example" tails that lose meaning without their quotes.
+  out = out.replace(/[,;:\-—]?\s*(e\.g\.|such as|for example)\s*[,:]?\s*[\.\?!]?/gi, "");
+
+  // Collapse leftover artefacts: empty parens, doubled spaces, stranded commas.
+  out = out
+    .replace(/\(\s*\)/g, "")
+    .replace(/\(\s*,\s*\)/g, "")
+    .replace(/\s*,\s*,/g, ",")
+    .replace(/\s+([,.;:])/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+\./g, ".")
+    .trim();
+
+  // Ensure terminal punctuation.
+  if (out && !/[.?!]$/.test(out)) out += ".";
+
+  return out;
+}
+
+/** Trim surrounding quote marks and whitespace from evidence. */
+function cleanEvidence(text: string): string {
+  if (!text) return "";
+  let out = text.trim();
+  // Strip a single layer of surrounding quotes (straight or curly).
+  out = out.replace(/^[\u2018\u2019\u201C\u201D'"]+|[\u2018\u2019\u201C\u201D'"]+$/g, "");
+  return out.trim();
+}
+
 // ── Step 1: identify Q1-Q5 sections ──────────────────────────────────────────
 
 export async function identifySections(text: string): Promise<Sections> {
@@ -97,13 +149,34 @@ You will be given the five sections (Q1-Q5) of a 5MAP and the full rubric.
 SCORING RULES:
 - Score EVERY dimension on a scale of 1-5 (integers only) using the rubric level descriptors.
 - Be honest and rigorous. Use the full 1-5 range — do not cluster scores around 3.
-- Each score must be grounded in a short verbatim quote from the 5MAP (key_evidence).
+
+RATIONALE RULES (strict — violations make the output unusable):
+- "rationale" must be ONE clean sentence (two short ones at the absolute maximum).
+- "rationale" MUST NOT contain ANY quoted phrases — no 'single quotes', no "double quotes", no curly quotes around words from the 5MAP.
+- "rationale" MUST NOT contain "e.g.", "such as", "for example" followed by document words.
+- Write the rationale in the evaluator's own voice — analysis and verdict only, no echoing the document's vocabulary in quotation marks.
+- All verbatim wording from the 5MAP goes in "key_evidence", NEVER in "rationale".
+
+EVIDENCE RULES:
+- "key_evidence" must be a short verbatim quote (or near-verbatim) directly from the 5MAP. 1 sentence or 1 short phrase. No surrounding quotation marks — just the raw text.
+- The evidence must clearly justify the score given.
+
+EXAMPLES (follow this style):
+
+GOOD rationale: "Intent is clear but multi-clause and not easily repeatable in a single sentence."
+BAD rationale:  "Intent mixes outcomes ('sustainable growth') with activities ('bringing the love back'), making it hard to recall."
+
+GOOD rationale: "KPIs are sensible but lack specific targets and time-bound thresholds."
+BAD rationale:  "The KPIs mention 'participation above 85%' but no time horizon is given, e.g. 'retention 98%'."
+
+GOOD key_evidence: Increase Participation above 85%; Retention of clients 98%; Customer satisfaction / NPS
+BAD key_evidence:  "The KPIs are clear" (this is analysis, not evidence)
 
 RECOMMENDATIONS RULES:
 - After scoring, produce 0-3 targeted improvement recommendations (NOT always 3 — only include ones that genuinely add value).
 - Prioritise dimensions with the highest weighted gap: (5 − score) × weight.
 - Skip dimensions already scoring 4 or 5 unless there is a clearly concrete win.
-- Each recommendation must be SPECIFIC to this 5MAP — quote or reference its actual content. No generic platitudes like "improve clarity".
+- Each recommendation must be SPECIFIC to this 5MAP. No generic platitudes.
 - "action" must be 1-2 sentences max, written as a directive (e.g. "Rewrite Q2 to..." or "Replace the phrase X with Y...").
 - "expected_impact" must be 1 short line stating what improves.
 - If a 5MAP already scores ≥4.5 overall, returning 0 or 1 recommendations is fine.
@@ -194,8 +267,8 @@ Return ONLY valid JSON — no markdown fences, no prose.`;
       weight: d.weight,
       score,
       weightedScore: Math.round(score * d.weight * 100) / 100,
-      rationale: r.rationale ?? "",
-      keyEvidence: r.key_evidence ?? "",
+      rationale: cleanRationale(r.rationale ?? ""),
+      keyEvidence: cleanEvidence(r.key_evidence ?? ""),
     };
   });
 

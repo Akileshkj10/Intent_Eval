@@ -170,10 +170,23 @@ function Report({ result }: { result: EvalResult }) {
                         {d.score}/5
                       </span>
                     </td>
-                    <td style={{ fontSize: 12.5 }}>
-                      <div style={{ marginBottom: 4 }}>{d.rationale}</div>
+                    <td style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+                      <div style={{ marginBottom: 8 }}>
+                        {d.rationale}{" "}
+                        <span style={{ color: "#94a3b8", fontSize: 11.5, whiteSpace: "nowrap" }}>
+                          [5MAP input]
+                        </span>
+                      </div>
                       {d.keyEvidence && (
-                        <div style={{ fontStyle: "italic", color: "#4b5563" }}>
+                        <div
+                          style={{
+                            fontStyle: "italic",
+                            color: "#475569",
+                            fontSize: 12,
+                            paddingLeft: 8,
+                            borderLeft: "2px solid #cbd5e1",
+                          }}
+                        >
                           &ldquo;{d.keyEvidence}&rdquo;
                         </div>
                       )}
