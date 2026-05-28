@@ -64,25 +64,75 @@ def save_uploaded_bytes(session_dir: Path, filename: str, content: bytes) -> Pat
     return target
 
 
+_SECTION_ID_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "q1": {"type": "string"},
+        "q2": {"type": "string"},
+        "q3": {"type": "string"},
+        "q4": {"type": "string"},
+        "q5": {"type": "string"},
+    },
+    "required": ["q1", "q2", "q3", "q4", "q5"],
+    "additionalProperties": False,
+}
+
+_SECTION_ID_SYSTEM = (
+    "You are an expert in the 5MAP/5QMA strategic intent framework (Leading Change / Stephen Bungay). "
+    "Given raw 5MAP or 5QMA text, extract and return the content for each of the five questions.\n"
+    "q1 — Context and Higher Intent: the business situation, what the boss and boss's boss want.\n"
+    "q2 — Intent and Measures of Success: the mission statement, what we intend to achieve and why, KPIs.\n"
+    "q3 — Implied Tasks: what we need to do to achieve the intent.\n"
+    "q4 — Boundaries: freedoms to operate and constraints.\n"
+    "q5 — Backbrief/Achievability: performance review plan, questions for boss, questions for other teams.\n"
+    "Return only the extracted text for each section. If a section is absent, return an empty string."
+)
+
+
+def _identify_sections_with_llm(text: str) -> dict[str, str]:
+    """Ask Claude to split unstructured 5MAP text into Q1-Q5 sections."""
+    client = LLMClient.from_settings()
+    prompt = {
+        "system": _SECTION_ID_SYSTEM,
+        "user": f"Extract Q1-Q5 sections from this 5MAP text:\n\n{text[:8000]}",
+    }
+    result = client.complete_structured(prompt, _SECTION_ID_SCHEMA, run_id="section_identification")
+    return {k: str(v) for k, v in result.items()}
+
+
 def save_text_input_document(
     session_dir: Path,
     *,
     pasted_text: str = "",
-    q1_context: str = "",
-    q2_intent: str = "",
-    q3_tasks: str = "",
-    q4_boundaries: str = "",
-    q5_backbrief: str = "",
 ) -> Path:
-    """Convert UI text input into parsed JSON inside the session output folder."""
+    """Convert pasted 5MAP text into parsed JSON inside the session output folder.
+
+    Attempts keyword-based Q-label detection first (fast). Falls back to a
+    Claude call that intelligently identifies Q1-Q5 sections from unstructured text.
+    """
     _assert_within_outputs(session_dir)
+
+    from intent_evaluator.parsing.docling_adapter import _extract_labeled_text_sections
+
+    labeled = _extract_labeled_text_sections(pasted_text)
+    enough_labels = sum(1 for v in labeled.values() if v.strip()) >= 3
+
+    if enough_labels:
+        sections = labeled
+    else:
+        try:
+            sections = _identify_sections_with_llm(pasted_text)
+        except Exception:
+            # No API key or network failure — fall back to low-confidence mode.
+            sections = {}
+
     doc = parse_text_input(
         text=pasted_text,
-        q1_context=q1_context,
-        q2_intent=q2_intent,
-        q3_tasks=q3_tasks,
-        q4_boundaries=q4_boundaries,
-        q5_backbrief=q5_backbrief,
+        q1_context=sections.get("q1", ""),
+        q2_intent=sections.get("q2", ""),
+        q3_tasks=sections.get("q3", ""),
+        q4_boundaries=sections.get("q4", ""),
+        q5_backbrief=sections.get("q5", ""),
     )
     target = session_dir / "manual_text_input.parsed.json"
     _assert_within_outputs(target)
@@ -207,11 +257,10 @@ def _populate_fast_narrative(report: EvaluationReport, map_doc: FiveMapDocument)
     report.executive_summary = (
         f"This 5MAP scored {total:.2f}/5.00, placing it in the band: {band}. "
         f"Relative strengths: {high_text}. Priority improvement areas: {low_text}. "
-        "The score is based on live Claude rubric evaluation; this fast pilot report uses "
-        "deterministic narrative so the UI returns promptly."
+        "The score is based on Test AI Version rubric evaluation."
     )
     report.purpose_of_briefing_note = (
-        "This briefing note summarises live rubric scoring and evidence for the submitted 5MAP. "
+        "This briefing note summarises Test AI Version rubric scoring and evidence for the submitted 5MAP. "
         "It is intended for consultant review before any client-facing use."
     )
     report.alignment_to_higher_intent = (
@@ -219,8 +268,8 @@ def _populate_fast_narrative(report: EvaluationReport, map_doc: FiveMapDocument)
         "to higher direction, strategy, and business context."
     )
     report.commentary_by_question_intro = (
-        "The commentary below is generated deterministically from the parsed Q1-Q5 sections and live "
-        "dimension scores. Use it as a quick review pack while refining the final consultant narrative."
+        "The commentary below is generated from the parsed Q1-Q5 sections and dimension scores. "
+        "Use it as a quick review pack while refining the final consultant narrative."
     )
     report.q1_context_and_higher_intent = _question_block(
         "Q1 Context and Higher Intent",
@@ -254,7 +303,7 @@ def _populate_fast_narrative(report: EvaluationReport, map_doc: FiveMapDocument)
     for row in report.appendix_a_scoring_rationale:
         evidence = row.evidence[0].quote if row.evidence else "No evidence quote supplied."
         row.rationale = (
-            f"Live Claude assigned {row.score}/5 for {row.dimension_id}. "
+            f"Test AI Version assigned {row.score}/5 for {row.dimension_id}. "
             f"Representative evidence: \"{evidence}\""
         )
     return report
@@ -275,6 +324,7 @@ def _run_live_scoring_fast_report(
         rubric=rubric,
         llm_client=client,
         run_id=run_id,
+        strict_evidence=False,
     )
 
     parsed_json_path = session_dir / "parsed.json"

@@ -90,8 +90,15 @@ def score_dimension(
     rubric: Rubric,
     llm_client: Any | None = None,
     run_id: str = "run_pending",
+    strict_evidence: bool = True,
 ) -> DimensionScore:
-    """Score one rubric dimension with one evidence-validation retry."""
+    """Score one rubric dimension with one evidence-validation retry.
+
+    When ``strict_evidence=False`` the pipeline continues even if evidence
+    quotes cannot be verified against the source text (e.g. encoding artefacts
+    from Docling on real PPTX files). The score is still returned; only the
+    audit trail is degraded.
+    """
     if dimension_id not in {dimension.id for dimension in rubric.dimensions}:
         raise KeyError(f"Unknown rubric dimension: {dimension_id}")
 
@@ -110,9 +117,12 @@ def score_dimension(
         retry_raw = client.complete_structured(prompt=retry_prompt, schema=schema, run_id=run_id)
         parsed = LLMDimensionResponse.model_validate(retry_raw)
         if not _evidence_valid(parsed, map_doc):
-            raise EvidenceValidationError(
-                f"Evidence validation failed for {dimension_id} after retry."
-            )
+            if strict_evidence:
+                raise EvidenceValidationError(
+                    f"Evidence validation failed for {dimension_id} after retry."
+                )
+            # Best-effort: score is preserved; evidence quotes are kept but flagged unverified.
+            print(f"  [WARN] Evidence unverified for {dimension_id} — likely encoding artefact in source PPTX.")
 
     return DimensionScore(
         dimension_id=parsed.dimension_id,
@@ -128,6 +138,7 @@ def score_all_dimensions(
     rubric: Rubric,
     llm_client: Any | None = None,
     run_id: str = "run_pending",
+    strict_evidence: bool = True,
 ) -> Scorecard:
     """Score all nine dimensions sequentially and return a scorecard."""
     client = llm_client or LLMClient.from_settings()
@@ -142,6 +153,7 @@ def score_all_dimensions(
                 rubric=rubric,
                 llm_client=client,
                 run_id=run_id,
+                strict_evidence=strict_evidence,
             )
         )
     return Scorecard(

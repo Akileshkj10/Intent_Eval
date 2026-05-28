@@ -13,11 +13,13 @@ def test_p6a_t2_text_input_generates_report_without_upload() -> None:
     session_dir = create_session_output_dir("test_p6a_text_report")
     map_path = save_text_input_document(
         session_dir,
-        q1_context="Context: the business needs clarity on why simplification matters.",
-        q2_intent="Intent: reduce friction so capacity is released for growth.",
-        q3_tasks="Tasks: identify blockers, sequence work, and assign accountable leads.",
-        q4_boundaries="Boundaries: stay within policy, budget, compliance, and platform constraints.",
-        q5_backbrief="Backbrief: confirm dependencies, assumptions, and escalation routes.",
+        pasted_text=(
+            "Q1: Context: the business needs clarity on why simplification matters.\n"
+            "Q2: Intent: reduce friction so capacity is released for growth.\n"
+            "Q3: Tasks: identify blockers, sequence work, and assign accountable leads.\n"
+            "Q4: Boundaries: stay within policy, budget, compliance, and platform constraints.\n"
+            "Q5: Backbrief: confirm dependencies, assumptions, and escalation routes."
+        ),
     )
 
     result = run_ui_pipeline(map_path=map_path, session_dir=session_dir, use_llm=False)
