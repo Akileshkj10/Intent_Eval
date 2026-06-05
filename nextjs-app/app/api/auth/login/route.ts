@@ -39,9 +39,9 @@ export async function POST(req: NextRequest) {
   response.cookies.set(SITE_AUTH_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: "strict",
     path: "/",
-    maxAge: 60 * 60 * 24 * 7,
+    // Session cookie: cleared when the browser closes (no maxAge).
   });
   return response;
 }

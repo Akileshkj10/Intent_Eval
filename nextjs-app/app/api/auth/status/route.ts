@@ -8,8 +8,12 @@ export async function GET(req: NextRequest) {
   const token = req.cookies.get(SITE_AUTH_COOKIE)?.value;
   const authenticated = await hasValidSiteAuthCookie(token);
 
-  return NextResponse.json({
-    protectionEnabled,
-    authenticated,
-  });
+  return NextResponse.json(
+    {
+      protectionEnabled,
+      authenticated,
+      host: req.nextUrl.host,
+    },
+    { headers: { "Cache-Control": "private, no-store" } }
+  );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { parsePptx } from "@/lib/parsePptx";
 import { readPdfAsBase64 } from "@/lib/parsePdf";
 import { canonicalHeading, TARGETED_RECOMMENDATIONS_PLACEMENT } from "@/lib/reportFormat";
@@ -561,6 +561,21 @@ function Report({ result }: { result: EvalResult }) {
 /* ── Main page ──────────────────────────────────────────────────────────────── */
 
 export default function Home() {
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/status", { credentials: "include", cache: "no-store" })
+      .then((res) => res.json())
+      .then((data: { protectionEnabled?: boolean; authenticated?: boolean }) => {
+        if (data.protectionEnabled && !data.authenticated) {
+          window.location.replace("/login");
+          return;
+        }
+        setAuthChecked(true);
+      })
+      .catch(() => setAuthChecked(true));
+  }, []);
+
   // ── Core state ─────────────────────────────────────────────────────────────
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
@@ -710,18 +725,49 @@ export default function Home() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
+  if (!authChecked) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#f1f5f9", padding: "32px 16px" }}>
+        <div style={{ maxWidth: 860, margin: "80px auto 0", textAlign: "center", color: "#64748b" }}>
+          Checking access…
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "#f1f5f9", padding: "32px 16px" }}>
       <div style={{ maxWidth: 860, margin: "0 auto" }}>
 
         {/* Header */}
-        <div style={{ marginBottom: 28 }}>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: "#0f172a", marginBottom: 4 }}>
-            5MAP Intent Evaluator
-          </h1>
-          <p style={{ fontSize: 13, color: "#64748b" }}>
-            Test AI Version · Confidential · Outputs are not stored
-          </p>
+        <div style={{ marginBottom: 28, display: "flex", justifyContent: "space-between", gap: 16 }}>
+          <div>
+            <h1 style={{ fontSize: 26, fontWeight: 800, color: "#0f172a", marginBottom: 4 }}>
+              5MAP Intent Evaluator
+            </h1>
+            <p style={{ fontSize: 13, color: "#64748b" }}>
+              Test AI Version · Confidential · Outputs are not stored
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+              window.location.href = "/login";
+            }}
+            style={{
+              alignSelf: "flex-start",
+              padding: "6px 12px",
+              fontSize: 12,
+              color: "#64748b",
+              background: "#fff",
+              border: "1px solid #d1d5db",
+              borderRadius: 6,
+              cursor: "pointer",
+            }}
+          >
+            Sign out
+          </button>
         </div>
 
         {/* Input card */}

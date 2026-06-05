@@ -6,7 +6,7 @@ import {
   readSiteAccessKey,
 } from "@/lib/siteAuth";
 
-const PUBLIC_PATHS = new Set(["/login", "/api/auth/login", "/api/auth/status"]);
+const PUBLIC_PATHS = new Set(["/login", "/api/auth/login", "/api/auth/logout", "/api/auth/status"]);
 
 export async function proxy(request: NextRequest) {
   await connection();
@@ -18,10 +18,17 @@ export async function proxy(request: NextRequest) {
   if (PUBLIC_PATHS.has(pathname)) return NextResponse.next();
 
   const token = request.cookies.get(SITE_AUTH_COOKIE)?.value;
-  if (await hasValidSiteAuthCookie(token)) return NextResponse.next();
+  if (await hasValidSiteAuthCookie(token)) {
+    const response = NextResponse.next();
+    response.headers.set("Cache-Control", "private, no-store, must-revalidate");
+    return response;
+  }
 
   if (pathname.startsWith("/api/")) {
-    return NextResponse.json({ error: "Unauthorized. Enter the site access key." }, { status: 401 });
+    return NextResponse.json(
+      { error: "Unauthorized. Enter the site access key." },
+      { status: 401, headers: { "Cache-Control": "private, no-store" } }
+    );
   }
 
   const loginUrl = request.nextUrl.clone();
@@ -29,7 +36,9 @@ export async function proxy(request: NextRequest) {
   if (pathname !== "/") {
     loginUrl.searchParams.set("from", pathname);
   }
-  return NextResponse.redirect(loginUrl);
+  const redirect = NextResponse.redirect(loginUrl);
+  redirect.headers.set("Cache-Control", "private, no-store, must-revalidate");
+  return redirect;
 }
 
 export const config = {

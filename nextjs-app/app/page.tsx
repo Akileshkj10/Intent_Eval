@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import EvaluatorClient from "./EvaluatorClient";
 import { verifySiteAuthFromCookies } from "@/lib/requireSiteAuth";
 
+export const dynamic = "force-dynamic";
+
 export default async function Page() {
   await connection();
   const authed = await verifySiteAuthFromCookies();
