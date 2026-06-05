@@ -1,9 +1,10 @@
 import { timingSafeEqual } from "crypto";
+import { connection } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import {
   SITE_AUTH_COOKIE,
   isSiteAccessEnabled,
-  siteAccessKey,
+  readSiteAccessKey,
   siteAuthToken,
 } from "@/lib/siteAuth";
 
@@ -15,7 +16,8 @@ function keysMatch(provided: string, expected: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
-  const accessKey = siteAccessKey();
+  await connection();
+  const accessKey = readSiteAccessKey();
   if (!accessKey) {
     return NextResponse.json({ ok: true, protection: false });
   }

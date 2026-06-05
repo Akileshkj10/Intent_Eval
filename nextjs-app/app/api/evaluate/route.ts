@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { identifySections, scoreAllDimensions, scoreFromPdf } from "@/lib/evaluator";
 import { isClaudeJsonParseError, userFacingJsonErrorMessage } from "@/lib/json";
+import { requireSiteAuthRequest } from "@/lib/requireSiteAuth";
 import {
   totalWeightedScore,
   interpretationBand,
@@ -11,6 +12,9 @@ import {
 export const maxDuration = 120; // Vercel Pro: up to 300s; Hobby: 60s
 
 export async function POST(req: NextRequest) {
+  const authError = await requireSiteAuthRequest(req);
+  if (authError) return authError;
+
   const apiKey = process.env.CLAUDE_API_KEY ?? process.env.ANTHROPIC_API_KEY ?? "";
   if (!apiKey) {
     return NextResponse.json({ error: "CLAUDE_API_KEY is not configured." }, { status: 500 });
