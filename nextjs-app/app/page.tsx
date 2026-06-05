@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
+import { parsePptx } from "@/lib/parsePptx";
+import { readPdfAsBase64 } from "@/lib/parsePdf";
+import type { ParseError } from "@/lib/types";
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
 
@@ -367,42 +370,154 @@ function Report({ result }: { result: EvalResult }) {
 /* ── Main page ──────────────────────────────────────────────────────────────── */
 
 export default function Home() {
+  // ── Core state ─────────────────────────────────────────────────────────────
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
   const [result, setResult] = useState<EvalResult | null>(null);
-  const [error, setError] = useState("");
+  const [evalError, setEvalError] = useState("");
+
+  // ── File upload state ───────────────────────────────────────────────────────
+  const [pdfBase64, setPdfBase64] = useState<string | null>(null);
+  const [fileInfo, setFileInfo] = useState<{ name: string; badge: string } | null>(null);
+  const [fileError, setFileError] = useState("");
+  const [extracting, setExtracting] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── File handling ───────────────────────────────────────────────────────────
+
+  const clearFile = useCallback(() => {
+    setPdfBase64(null);
+    setFileInfo(null);
+    setFileError("");
+    setExtracting(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, []);
+
+  const handleFile = useCallback(async (file: File | null) => {
+    if (!file) return;
+    setFileError("");
+    setExtracting(false);
+    setPdfBase64(null);
+    setFileInfo(null);
+    setText("");
+
+    const name = file.name;
+    const lowerName = name.toLowerCase();
+
+    // Block old .ppt binary format
+    if (lowerName.endsWith(".ppt") && !lowerName.endsWith(".pptx")) {
+      setFileError("Please save this file as .pptx first. Open it in PowerPoint → File → Save As → PowerPoint Presentation (.pptx).");
+      return;
+    }
+
+    // Block unsupported types
+    if (!lowerName.endsWith(".pptx") && !lowerName.endsWith(".pdf")) {
+      setFileError("Only .pptx and .pdf files are supported.");
+      return;
+    }
+
+    // ── PPTX path ─────────────────────────────────────────────────────────────
+    if (lowerName.endsWith(".pptx")) {
+      setExtracting(true);
+      try {
+        const buffer = await file.arrayBuffer();
+        const { text: extracted, slideCount } = await parsePptx(buffer);
+        setText(extracted);
+        setFileInfo({ name, badge: `${slideCount} slide${slideCount !== 1 ? "s" : ""}` });
+      } catch (err) {
+        const pe = err as ParseError;
+        if (pe.type === "password_protected") {
+          setFileError("This file is password-protected. Remove the password in PowerPoint (File → Info → Protect Presentation) and re-upload.");
+        } else if (pe.type === "wrong_format") {
+          setFileError("This doesn't appear to be a valid .pptx file. Try re-saving it from PowerPoint.");
+        } else {
+          setFileError((err as Error).message ?? "Could not read this file. Try re-saving it from PowerPoint.");
+        }
+      } finally {
+        setExtracting(false);
+      }
+      return;
+    }
+
+    // ── PDF path ──────────────────────────────────────────────────────────────
+    try {
+      const { base64, sizeBytes } = await readPdfAsBase64(file);
+      const sizeMB = (sizeBytes / (1024 * 1024)).toFixed(1);
+      setPdfBase64(base64);
+      setFileInfo({ name, badge: `PDF · ${sizeMB} MB` });
+    } catch (err) {
+      const pe = err as ParseError;
+      if (pe.type === "too_large") {
+        setFileError("PDF is too large (max 32 MB). Try compressing it or splitting into smaller files.");
+      } else {
+        setFileError((err as Error).message ?? "Could not read this PDF. Please try again.");
+      }
+    }
+  }, []);
+
+  const onFileInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      handleFile(e.target.files?.[0] ?? null);
+    },
+    [handleFile]
+  );
+
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragOver(false);
+      handleFile(e.dataTransfer.files?.[0] ?? null);
+    },
+    [handleFile]
+  );
+
+  // ── Evaluate ────────────────────────────────────────────────────────────────
+
+  const canEvaluate = !loading && (!!text.trim() || !!pdfBase64);
 
   async function handleEvaluate() {
-    if (!text.trim()) return;
+    if (!canEvaluate) return;
     setLoading(true);
     setResult(null);
-    setError("");
-    setStatus("Identifying Q1–Q5 sections…");
+    setEvalError("");
 
     try {
+      let body: Record<string, string>;
+
+      if (pdfBase64) {
+        setStatus("Sending PDF to Claude…");
+        body = { pdf: pdfBase64 };
+      } else {
+        setStatus("Identifying Q1–Q5 sections…");
+        body = { text };
+      }
+
       const res = await fetch("/api/evaluate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify(body),
       });
 
       setStatus("Scoring all 9 dimensions…");
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error ?? "Unknown error.");
+        setEvalError(data.error ?? "Unknown error.");
         return;
       }
 
       setResult(data as EvalResult);
       setStatus("");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Network error.");
+      setEvalError(e instanceof Error ? e.message : "Network error.");
     } finally {
       setLoading(false);
     }
   }
+
+  // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <div style={{ minHeight: "100vh", background: "#f1f5f9", padding: "32px 16px" }}>
@@ -428,6 +543,7 @@ export default function Home() {
             marginBottom: 24,
           }}
         >
+          {/* ── Text area ── */}
           <label
             htmlFor="map-text"
             style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 8 }}
@@ -435,14 +551,25 @@ export default function Home() {
             Paste your 5MAP content
           </label>
           <p style={{ fontSize: 12, color: "#64748b", marginBottom: 10 }}>
-            Paste the full text of your 5MAP or 5QMA. You can include Q labels (Q1:, Q2: …) or just paste
-            raw text — the AI identifies sections automatically.
+            Paste text directly, or upload a .pptx / .pdf file below — the AI identifies Q1–Q5 sections automatically.
           </p>
           <textarea
             id="map-text"
             value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={"Paste your 5MAP content here…\n\nWith labels:\nQ1: [Context and higher intent]\nQ2: [Intent and KPIs]\nQ3: [Implied tasks]\nQ4: [Boundaries]\nQ5: [Backbrief]\n\nOr just paste raw text."}
+            onChange={(e) => {
+              setText(e.target.value);
+              // If user starts typing, clear any loaded PDF (modes are exclusive)
+              if (pdfBase64) {
+                setPdfBase64(null);
+                setFileInfo(null);
+                if (fileInputRef.current) fileInputRef.current.value = "";
+              }
+            }}
+            placeholder={
+              pdfBase64
+                ? "PDF loaded — Claude will read it directly. No text preview available."
+                : "Paste your 5MAP content here…\n\nWith labels:\nQ1: [Context and higher intent]\nQ2: [Intent and KPIs]\nQ3: [Implied tasks]\nQ4: [Boundaries]\nQ5: [Backbrief]\n\nOr just paste raw text — the AI finds the sections."
+            }
             style={{
               width: "100%",
               minHeight: 280,
@@ -455,23 +582,203 @@ export default function Home() {
               outline: "none",
               color: "#1e293b",
               lineHeight: 1.6,
+              background: pdfBase64 ? "#f8fafc" : "#fff",
             }}
-            disabled={loading}
+            disabled={loading || !!pdfBase64}
           />
 
-          <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 14 }}>
+          {/* ── Upload area ── */}
+          <div style={{ marginTop: 16 }}>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: "#6b7280",
+                textTransform: "uppercase",
+                letterSpacing: "0.07em",
+                marginBottom: 8,
+              }}
+            >
+              Or upload a file
+            </div>
+
+            {/* Drop zone — hidden when a file is already loaded */}
+            {!fileInfo && !extracting && (
+              <div
+                onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                onDragLeave={() => setIsDragOver(false)}
+                onDrop={onDrop}
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  border: `2px dashed ${isDragOver ? "#0f172a" : "#cbd5e1"}`,
+                  borderRadius: 6,
+                  padding: "16px 20px",
+                  textAlign: "center",
+                  cursor: "pointer",
+                  background: isDragOver ? "#f1f5f9" : "transparent",
+                  transition: "all 0.15s",
+                }}
+              >
+                <div style={{ fontSize: 13, color: "#64748b" }}>
+                  Drag &amp; drop or{" "}
+                  <span style={{ color: "#0f172a", fontWeight: 600, textDecoration: "underline" }}>
+                    click to browse
+                  </span>
+                </div>
+                <div style={{ fontSize: 11.5, color: "#94a3b8", marginTop: 4 }}>
+                  Supports .pptx (slides extracted) and .pdf (read directly by Claude)
+                </div>
+              </div>
+            )}
+
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pptx,.pdf"
+              style={{ display: "none" }}
+              onChange={onFileInputChange}
+            />
+
+            {/* Extracting spinner */}
+            {extracting && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "12px 16px",
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 6,
+                  fontSize: 13,
+                  color: "#374151",
+                }}
+              >
+                <div
+                  style={{
+                    width: 14,
+                    height: 14,
+                    border: "2px solid #cbd5e1",
+                    borderTopColor: "#0f172a",
+                    borderRadius: "50%",
+                    animation: "spin 0.8s linear infinite",
+                    flexShrink: 0,
+                  }}
+                />
+                Extracting slides…
+              </div>
+            )}
+
+            {/* File loaded badge */}
+            {fileInfo && !extracting && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 14px",
+                  background: "#f0fdf4",
+                  border: "1px solid #86efac",
+                  borderRadius: 6,
+                  gap: 12,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 16 }}>{fileInfo.name.endsWith(".pdf") ? "📄" : "📊"}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#166534" }}>
+                    {fileInfo.name}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      background: "#dcfce7",
+                      color: "#166534",
+                      border: "1px solid #86efac",
+                      borderRadius: 4,
+                      padding: "2px 7px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {fileInfo.badge}
+                  </span>
+                  {pdfBase64 && (
+                    <span style={{ fontSize: 11.5, color: "#4b5563", fontStyle: "italic" }}>
+                      Claude will read the PDF directly — no text preview
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => { clearFile(); if (pdfBase64) setText(""); }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "#6b7280",
+                    fontSize: 16,
+                    lineHeight: 1,
+                    padding: "2px 4px",
+                    flexShrink: 0,
+                  }}
+                  title="Remove file"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+
+            {/* File error */}
+            {fileError && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  padding: "10px 14px",
+                  background: "#fef2f2",
+                  border: "1px solid #fca5a5",
+                  borderRadius: 6,
+                  marginTop: 8,
+                  fontSize: 13,
+                  color: "#991b1b",
+                }}
+              >
+                <span>⚠ {fileError}</span>
+                <button
+                  onClick={() => setFileError("")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "#991b1b",
+                    fontSize: 16,
+                    lineHeight: 1,
+                    padding: "0 4px",
+                    flexShrink: 0,
+                  }}
+                  title="Dismiss"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* ── Generate button ── */}
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 18 }}>
             <button
               onClick={handleEvaluate}
-              disabled={loading || !text.trim()}
+              disabled={!canEvaluate}
               style={{
-                background: loading || !text.trim() ? "#94a3b8" : "#0f172a",
+                background: !canEvaluate ? "#94a3b8" : "#0f172a",
                 color: "#fff",
                 border: "none",
                 borderRadius: 6,
                 padding: "11px 28px",
                 fontSize: 15,
                 fontWeight: 700,
-                cursor: loading || !text.trim() ? "not-allowed" : "pointer",
+                cursor: !canEvaluate ? "not-allowed" : "pointer",
                 transition: "background 0.15s",
               }}
             >
@@ -496,8 +803,8 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Error */}
-        {error && (
+        {/* Eval error */}
+        {evalError && (
           <div
             style={{
               background: "#fef2f2",
@@ -507,9 +814,17 @@ export default function Home() {
               fontSize: 14,
               color: "#991b1b",
               marginBottom: 24,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: 12,
             }}
           >
-            <strong>Error:</strong> {error}
+            <span><strong>Error:</strong> {evalError}</span>
+            <button
+              onClick={() => setEvalError("")}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "#991b1b", fontSize: 16, lineHeight: 1, padding: "0 4px", flexShrink: 0 }}
+            >×</button>
           </div>
         )}
 
