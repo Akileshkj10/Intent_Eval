@@ -94,7 +94,17 @@ function cleanEvidence(text: string): string {
 
 // ── Step 1: identify Q1-Q5 sections ──────────────────────────────────────────
 
-export async function identifySections(text: string): Promise<Sections> {
+/**
+ * Identify Q1-Q5 sections from text.
+ * @param text       Extracted text (from textarea, PPTX dump, etc.)
+ * @param inputHint  Optional hint about the text source for a richer prompt.
+ *                   "pptx" adds slide-aware extraction instructions.
+ *                   "text" (default) uses the standard prompt.
+ */
+export async function identifySections(
+  text: string,
+  inputHint: "pptx" | "text" = "text"
+): Promise<Sections> {
   const schema = {
     type: "object" as const,
     properties: {
@@ -108,15 +118,32 @@ export async function identifySections(text: string): Promise<Sections> {
   };
 
   const systemPrompt = `You are an expert in the 5MAP/5QMA strategic intent framework (Leading Change / Stephen Bungay).
-Given raw 5MAP text, extract and return the content for each of the five questions:
+Given 5MAP content, extract and return the text for each of the five questions:
 - q1: Context and Higher Intent — the business situation, what the boss and boss's boss want.
 - q2: Intent and Measures of Success — the mission statement, what we intend to achieve and why, KPIs.
-- q3: Implied Tasks — what we need to do to achieve the intent.
+- q3: Implied Tasks / Main Effort — what we need to do to achieve the intent.
 - q4: Boundaries — freedoms to operate and constraints.
-- q5: Backbrief/Achievability — performance review plan, questions for boss, questions for other teams.
+- q5: Backbrief / Achievability — performance review plan, questions for boss, questions for other teams.
 If a section is absent, return an empty string. Return only valid JSON matching the schema.`;
 
-  const userPrompt = `Extract Q1-Q5 sections from this 5MAP text:\n\n${text.slice(0, 8000)}\n\nJSON Schema:\n${JSON.stringify(schema)}`;
+  // PPTX-specific instructions added to the user prompt when input is from a presentation.
+  const pptxContext =
+    inputHint === "pptx"
+      ? `IMPORTANT — this content was extracted from a PowerPoint presentation:
+- Slide numbers and titles are preserved in [Slide N — "Title"] markers.
+- A single Q section may span multiple slides — aggregate all related slides into one Q field.
+- Ignore slides that are purely cover/branding/agenda/contact slides (no Q content).
+- Section titles in this presentation may use any of these label variants:
+  Q1 / Question 1 / Context / Higher Intent / Higher Direction / Business Situation
+  Q2 / Question 2 / Intent / Mission / Measures of Success / KPIs / Purpose
+  Q3 / Question 3 / Implied Tasks / Main Effort / Priorities / Tasks / Actions
+  Q4 / Question 4 / Boundaries / Freedoms / Constraints / What Not To Do
+  Q5 / Question 5 / Backbrief / Achievability / Review / Questions for Boss
+- Speaker notes (labelled "Notes:") may contain the richest content — include them.
+- Where a slide has no Q label, infer the section from its content and position.\n\n`
+      : "";
+
+  const userPrompt = `${pptxContext}Extract Q1-Q5 sections from this 5MAP content:\n\n${text.slice(0, 10000)}\n\nJSON Schema:\n${JSON.stringify(schema)}`;
 
   const response = await client().messages.create({
     model: "claude-sonnet-4-6",
