@@ -324,3 +324,185 @@ Return ONLY valid JSON — no markdown fences, no prose.`;
 
   return { results, recommendations };
 }
+
+// ── Option B: score directly from a PDF document ──────────────────────────────
+
+export interface PdfScoringPayload extends ScoringPayload {
+  sections: Sections;
+}
+
+/**
+ * Evaluate a 5MAP PDF in a single Claude Opus call.
+ * Claude reads the PDF natively — no text extraction step needed.
+ * Returns the same shape as the two-step text flow plus the identified sections.
+ */
+export async function scoreFromPdf(pdfBase64: string): Promise<PdfScoringPayload> {
+  const rubricText = DIMENSIONS.map((d) => {
+    const levels = Object.entries(d.levels)
+      .map(([k, v]) => `  ${k}: ${v}`)
+      .join("\n");
+    return `### ${d.id} — ${d.name} (weight ${d.weight})\n${levels}`;
+  }).join("\n\n");
+
+  const dimensionIds = DIMENSIONS.map((d) => d.id).join(", ");
+
+  const systemPrompt = `You are an expert evaluator of strategic intent documents using the Leading Change 5MAP/5QMA rubric.
+You will be given a PDF presentation containing a 5MAP or 5QMA document.
+
+STEP 1 — EXTRACT SECTIONS:
+Identify the five Q sections. They may be labelled as:
+  Q1 / Question 1 / Context / Higher Intent — the business situation, what the boss and boss's boss want.
+  Q2 / Question 2 / Intent / Mission / Measures of Success — the mission statement, KPIs, what we achieve and why.
+  Q3 / Question 3 / Implied Tasks / Main Effort / Priorities — what needs to happen to achieve the intent.
+  Q4 / Question 4 / Boundaries / Freedoms / Constraints — what the team can and cannot do.
+  Q5 / Question 5 / Backbrief / Achievability / Review — performance review plan, questions for boss.
+If a section is absent, use an empty string.
+
+STEP 2 — SCORE ALL 9 DIMENSIONS using the rubric below (1–5 integers, full range).
+
+RATIONALE RULES (strict):
+- "rationale": ONE clean sentence. NO quoted phrases from the document inside it. Pure evaluator analysis.
+- "key_evidence": short verbatim quote from the document that justifies the score. No surrounding quote marks.
+
+RECOMMENDATIONS RULES:
+- 0–3 recommendations. Only include ones that genuinely add value. Do not force 3.
+- Prioritise by weighted gap: (5 − score) × weight.
+- Each "action": 1–2 sentences, specific to this document, written as a directive.
+- Each "expected_impact": 1 short line.
+
+Return ONLY valid JSON — no markdown fences, no prose.`;
+
+  const responseSchema = {
+    type: "object",
+    properties: {
+      sections: {
+        type: "object",
+        properties: {
+          q1: { type: "string" },
+          q2: { type: "string" },
+          q3: { type: "string" },
+          q4: { type: "string" },
+          q5: { type: "string" },
+        },
+        required: ["q1", "q2", "q3", "q4", "q5"],
+      },
+      scores: {
+        type: "object",
+        properties: Object.fromEntries(
+          DIMENSIONS.map((d) => [
+            d.id,
+            {
+              type: "object",
+              properties: {
+                score: { type: "integer", minimum: 1, maximum: 5 },
+                rationale: { type: "string" },
+                key_evidence: { type: "string" },
+              },
+              required: ["score", "rationale", "key_evidence"],
+            },
+          ])
+        ),
+        required: DIMENSIONS.map((d) => d.id),
+      },
+      recommendations: {
+        type: "array",
+        minItems: 0,
+        maxItems: 3,
+        items: {
+          type: "object",
+          properties: {
+            target_dimension_id: { type: "string", description: `One of: ${dimensionIds}` },
+            action: { type: "string" },
+            expected_impact: { type: "string" },
+          },
+          required: ["target_dimension_id", "action", "expected_impact"],
+        },
+      },
+    },
+    required: ["sections", "scores", "recommendations"],
+  };
+
+  const userPrompt = `Please evaluate this 5MAP document.\n\nRUBRIC:\n${rubricText}\n\nReturn JSON matching this schema:\n${JSON.stringify(responseSchema, null, 2)}`;
+
+  const response = await client().messages.create({
+    model: "claude-opus-4-7",
+    max_tokens: 4096,
+    system: systemPrompt,
+    messages: [
+      {
+        role: "user",
+        // The Anthropic SDK types don't expose a document block yet;
+        // cast via unknown to satisfy the type checker.
+        content: [
+          {
+            type: "document",
+            source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
+          },
+          { type: "text", text: userPrompt },
+        ] as unknown as Anthropic.MessageParam["content"],
+      },
+    ],
+  });
+
+  const raw = response.content[0].type === "text" ? response.content[0].text : "{}";
+  const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
+  const parsed = JSON.parse(cleaned) as {
+    sections: Sections;
+    scores: Record<string, { score: number; rationale: string; key_evidence: string }>;
+    recommendations?: Array<{
+      target_dimension_id: string;
+      action: string;
+      expected_impact: string;
+    }>;
+  };
+
+  // Extract sections
+  const sections: Sections = {
+    q1: parsed.sections?.q1 ?? "",
+    q2: parsed.sections?.q2 ?? "",
+    q3: parsed.sections?.q3 ?? "",
+    q4: parsed.sections?.q4 ?? "",
+    q5: parsed.sections?.q5 ?? "",
+  };
+
+  // Build dimension results (same logic as scoreAllDimensions)
+  const results: DimensionResult[] = DIMENSIONS.map((d) => {
+    const r = parsed.scores?.[d.id] ?? { score: 1, rationale: "Not scored.", key_evidence: "" };
+    const score = Math.min(5, Math.max(1, Math.round(r.score)));
+    return {
+      id: d.id,
+      name: d.name,
+      section: d.section,
+      weight: d.weight,
+      score,
+      weightedScore: Math.round(score * d.weight * 100) / 100,
+      rationale: cleanRationale(r.rationale ?? ""),
+      keyEvidence: cleanEvidence(r.key_evidence ?? ""),
+    };
+  });
+
+  // Validate recommendations (same logic as scoreAllDimensions)
+  const seen = new Set<string>();
+  const recommendations: Recommendation[] = (parsed.recommendations ?? [])
+    .filter((r) => {
+      const dim = DIMENSIONS.find((d) => d.id === r.target_dimension_id);
+      if (!dim) return false;
+      if (seen.has(dim.id)) return false;
+      seen.add(dim.id);
+      return Boolean(r.action?.trim());
+    })
+    .slice(0, 3)
+    .map((r) => {
+      const dim = DIMENSIONS.find((d) => d.id === r.target_dimension_id)!;
+      const result = results.find((x) => x.id === dim.id)!;
+      return {
+        targetDimensionId: dim.id,
+        targetDimensionName: dim.name,
+        currentScore: result.score,
+        action: r.action.trim(),
+        expectedImpact: (r.expected_impact ?? "").trim(),
+      };
+    });
+
+  return { sections, results, recommendations };
+}
