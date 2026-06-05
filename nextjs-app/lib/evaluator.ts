@@ -1,10 +1,54 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { isClaudeJsonParseError, parseClaudeJson } from "./json";
 import { DIMENSIONS } from "./rubric";
 
 const client = () =>
   new Anthropic({
     apiKey: process.env.CLAUDE_API_KEY ?? process.env.ANTHROPIC_API_KEY ?? "",
   });
+
+type MessageCreateArgs = Parameters<ReturnType<typeof client>["messages"]["create"]>[0];
+
+function firstTextBlock(response: unknown): string {
+  const message = response as { content?: Array<{ type?: string; text?: string }> };
+  return message.content?.[0]?.type === "text" ? message.content[0].text ?? "{}" : "{}";
+}
+
+async function parseJsonWithRetry<T>(
+  args: MessageCreateArgs,
+  schema: unknown,
+  contextLabel: string
+): Promise<T> {
+  const claude = client();
+  const first = await claude.messages.create(args);
+  const firstRaw = firstTextBlock(first);
+
+  try {
+    return parseClaudeJson<T>(firstRaw);
+  } catch (error) {
+    if (!isClaudeJsonParseError(error)) throw error;
+    console.error(`${contextLabel}: invalid Claude JSON; retrying once.`, error.message);
+  }
+
+  const retryPrompt = `Invalid JSON response. Retry once and return ONLY valid JSON matching this schema. Do not include markdown fences, commentary, trailing commas, or prose.\n\nSchema:\n${JSON.stringify(schema, null, 2)}`;
+  const retryArgs: MessageCreateArgs = {
+    ...args,
+    messages: [
+      ...args.messages,
+      {
+        role: "assistant",
+        content: firstRaw.slice(0, 12000),
+      },
+      {
+        role: "user",
+        content: retryPrompt,
+      },
+    ],
+  };
+
+  const second = await claude.messages.create(retryArgs);
+  return parseClaudeJson<T>(firstTextBlock(second));
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -35,9 +79,34 @@ export interface Recommendation {
   expectedImpact: string;
 }
 
+export interface QuestionCommentary {
+  strengths: string;
+  gapsRisks: string;
+  suggestedImprovements: string;
+}
+
+export interface AppendixRationale {
+  dimensionId: string;
+  rationale: string;
+}
+
+export interface ReportNarrative {
+  purposeOfBriefingNote: string;
+  alignmentToHigherIntent: string;
+  commentaryIntro: string;
+  q1Commentary: QuestionCommentary;
+  q2Commentary: QuestionCommentary;
+  q3Commentary: QuestionCommentary;
+  q4Commentary: QuestionCommentary;
+  q5Commentary: QuestionCommentary;
+  overallAssessment: string;
+  appendixRationale: AppendixRationale[];
+}
+
 export interface ScoringPayload {
   results: DimensionResult[];
   recommendations: Recommendation[];
+  reportNarrative: ReportNarrative;
 }
 
 // ── Text cleanup helpers ─────────────────────────────────────────────────────
@@ -90,6 +159,167 @@ function cleanEvidence(text: string): string {
   // Strip a single layer of surrounding quotes (straight or curly).
   out = out.replace(/^[\u2018\u2019\u201C\u201D'"]+|[\u2018\u2019\u201C\u201D'"]+$/g, "");
   return out.trim();
+}
+
+function narrativeSchema() {
+  const questionCommentary = {
+    type: "object",
+    properties: {
+      strengths: { type: "string" },
+      gaps_risks: { type: "string" },
+      suggested_improvements: { type: "string" },
+    },
+    required: ["strengths", "gaps_risks", "suggested_improvements"],
+  };
+
+  return {
+    type: "object",
+    properties: {
+      purpose_of_briefing_note: { type: "string" },
+      alignment_to_higher_intent: { type: "string" },
+      commentary_intro: { type: "string" },
+      q1_commentary: questionCommentary,
+      q2_commentary: questionCommentary,
+      q3_commentary: questionCommentary,
+      q4_commentary: questionCommentary,
+      q5_commentary: questionCommentary,
+      overall_assessment: { type: "string" },
+      appendix_rationale: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            dimension_id: { type: "string" },
+            rationale: { type: "string" },
+          },
+          required: ["dimension_id", "rationale"],
+        },
+      },
+    },
+    required: [
+      "purpose_of_briefing_note",
+      "alignment_to_higher_intent",
+      "commentary_intro",
+      "q1_commentary",
+      "q2_commentary",
+      "q3_commentary",
+      "q4_commentary",
+      "q5_commentary",
+      "overall_assessment",
+      "appendix_rationale",
+    ],
+  };
+}
+
+type RawQuestionCommentary = {
+  strengths?: string;
+  gaps_risks?: string;
+  suggested_improvements?: string;
+};
+
+type RawReportNarrative = {
+  purpose_of_briefing_note?: string;
+  alignment_to_higher_intent?: string;
+  commentary_intro?: string;
+  q1_commentary?: RawQuestionCommentary;
+  q2_commentary?: RawQuestionCommentary;
+  q3_commentary?: RawQuestionCommentary;
+  q4_commentary?: RawQuestionCommentary;
+  q5_commentary?: RawQuestionCommentary;
+  overall_assessment?: string;
+  appendix_rationale?: Array<{ dimension_id?: string; rationale?: string }>;
+};
+
+function normalizeQuestionCommentary(
+  raw: RawQuestionCommentary | undefined,
+  fallback: QuestionCommentary
+): QuestionCommentary {
+  return {
+    strengths: raw?.strengths?.trim() || fallback.strengths,
+    gapsRisks: raw?.gaps_risks?.trim() || fallback.gapsRisks,
+    suggestedImprovements: raw?.suggested_improvements?.trim() || fallback.suggestedImprovements,
+  };
+}
+
+function normalizeReportNarrative(
+  raw: RawReportNarrative | undefined,
+  results: DimensionResult[],
+  recommendations: Recommendation[]
+): ReportNarrative {
+  const byId = (id: string) => results.find((r) => r.id === id);
+  const fallbackAction =
+    recommendations[0]?.action ??
+    "Refine the lowest-scoring dimensions first, keeping the intent concise, outcome-led, and practical for teams to use.";
+
+  const fallbackQuestion = (dimensionId: string, suggested: string): QuestionCommentary => {
+    const result = byId(dimensionId);
+    return {
+      strengths: result
+        ? `${result.name} currently scores ${result.score}/5.`
+        : "Relevant strengths should be reviewed against the scored dimensions.",
+      gapsRisks: result?.rationale ?? "No specific rationale was returned for this section.",
+      suggestedImprovements: suggested,
+    };
+  };
+
+  return {
+    purposeOfBriefingNote:
+      raw?.purpose_of_briefing_note?.trim() ||
+      "This briefing note evaluates the submitted 5MAP against the Leading Change weighted rubric and identifies the most useful refinements before wider use.",
+    alignmentToHigherIntent:
+      raw?.alignment_to_higher_intent?.trim() ||
+      byId("alignment_higher_direction")?.rationale ||
+      "Alignment to higher intent should be reviewed against Q1 and the wider business context.",
+    commentaryIntro:
+      raw?.commentary_intro?.trim() ||
+      "The commentary below summarises strengths, gaps, and suggested improvements by 5MAP question.",
+    q1Commentary: normalizeQuestionCommentary(
+      raw?.q1_commentary,
+      fallbackQuestion(
+        "alignment_higher_direction",
+        "Make the link to the boss's intent, wider strategy, and current business situation explicit enough that teams can repeat it."
+      )
+    ),
+    q2Commentary: normalizeQuestionCommentary(
+      raw?.q2_commentary,
+      fallbackQuestion(
+        "clarity_outcome",
+        "Keep the intent statement outcome-led, concise, and measurable, separating success measures from explanatory narrative where possible."
+      )
+    ),
+    q3Commentary: normalizeQuestionCommentary(
+      raw?.q3_commentary,
+      fallbackQuestion(
+        "alignment_tasks",
+        "Ensure each task clearly advances the intent and identify the main effort so teams can prioritise when resources are constrained."
+      )
+    ),
+    q4Commentary: normalizeQuestionCommentary(
+      raw?.q4_commentary,
+      fallbackQuestion(
+        "decentralised_utility",
+        "Clarify freedoms, constraints, escalation points, and trade-offs so teams know what they can decide without further permission."
+      )
+    ),
+    q5Commentary: normalizeQuestionCommentary(
+      raw?.q5_commentary,
+      fallbackQuestion(
+        "testability",
+        "Add specific review cadence, assumptions, questions for the boss, and measurable indicators that show whether the intent is working."
+      )
+    ),
+    overallAssessment:
+      raw?.overall_assessment?.trim() ||
+      `The strongest next step is to ${fallbackAction.charAt(0).toLowerCase()}${fallbackAction.slice(1)}`,
+    appendixRationale: DIMENSIONS.map((dimension) => {
+      const result = byId(dimension.id);
+      const supplied = raw?.appendix_rationale?.find((item) => item.dimension_id === dimension.id);
+      return {
+        dimensionId: dimension.id,
+        rationale: supplied?.rationale?.trim() || result?.rationale || "No rationale returned.",
+      };
+    }),
+  };
 }
 
 // ── Step 1: identify Q1-Q5 sections ──────────────────────────────────────────
@@ -145,16 +375,12 @@ If a section is absent, return an empty string. Return only valid JSON matching 
 
   const userPrompt = `${pptxContext}Extract Q1-Q5 sections from this 5MAP content:\n\n${text.slice(0, 10000)}\n\nJSON Schema:\n${JSON.stringify(schema)}`;
 
-  const response = await client().messages.create({
+  return parseJsonWithRetry<Sections>({
     model: "claude-sonnet-4-6",
     max_tokens: 2048,
     system: systemPrompt,
     messages: [{ role: "user", content: userPrompt }],
-  });
-
-  const raw = response.content[0].type === "text" ? response.content[0].text : "{}";
-  const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
-  return JSON.parse(cleaned) as Sections;
+  }, schema, "identifySections");
 }
 
 // ── Step 2: score all 9 dimensions in ONE call ────────────────────────────────
@@ -208,6 +434,13 @@ RECOMMENDATIONS RULES:
 - "expected_impact" must be 1 short line stating what improves.
 - If a 5MAP already scores ≥4.5 overall, returning 0 or 1 recommendations is fine.
 
+REPORT NARRATIVE RULES:
+- Also write concise narrative fields for the canonical report sections.
+- Do NOT calculate or mention weighted totals; application code calculates totals.
+- Do NOT modify any dimension score in the narrative.
+- Each Q commentary should include strengths, gaps/risks, and suggested improvements.
+- Keep the wording consultant-style, specific to the supplied 5MAP, and concise.
+
 Return ONLY valid JSON — no markdown fences, no prose.`;
 
   const contextJson = JSON.stringify(
@@ -260,29 +493,27 @@ Return ONLY valid JSON — no markdown fences, no prose.`;
           required: ["target_dimension_id", "action", "expected_impact"],
         },
       },
+      report_narrative: narrativeSchema(),
     },
-    required: ["scores", "recommendations"],
+    required: ["scores", "recommendations", "report_narrative"],
   };
 
-  const userPrompt = `Here is the 5MAP content to evaluate:\n\n${contextJson}\n\n---\nRUBRIC:\n\n${rubricText}\n\n---\nReturn JSON matching this schema (note the two top-level keys: "scores" and "recommendations"):\n${JSON.stringify(responseSchema, null, 2)}`;
+  const userPrompt = `Here is the 5MAP content to evaluate:\n\n${contextJson}\n\n---\nRUBRIC:\n\n${rubricText}\n\n---\nReturn JSON matching this schema (note the top-level keys: "scores", "recommendations", and "report_narrative"):\n${JSON.stringify(responseSchema, null, 2)}`;
 
-  const response = await client().messages.create({
-    model: "claude-opus-4-7",
-    max_tokens: 4096,
-    system: systemPrompt,
-    messages: [{ role: "user", content: userPrompt }],
-  });
-
-  const raw = response.content[0].type === "text" ? response.content[0].text : "{}";
-  const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
-  const parsed = JSON.parse(cleaned) as {
+  const parsed = await parseJsonWithRetry<{
     scores: Record<string, { score: number; rationale: string; key_evidence: string }>;
     recommendations?: Array<{
       target_dimension_id: string;
       action: string;
       expected_impact: string;
     }>;
-  };
+    report_narrative?: RawReportNarrative;
+  }>({
+    model: "claude-opus-4-7",
+    max_tokens: 4096,
+    system: systemPrompt,
+    messages: [{ role: "user", content: userPrompt }],
+  }, responseSchema, "scoreAllDimensions");
 
   const results: DimensionResult[] = DIMENSIONS.map((d) => {
     const r = parsed.scores?.[d.id] ?? { score: 1, rationale: "Not scored.", key_evidence: "" };
@@ -322,7 +553,9 @@ Return ONLY valid JSON — no markdown fences, no prose.`;
       };
     });
 
-  return { results, recommendations };
+  const reportNarrative = normalizeReportNarrative(parsed.report_narrative, results, recommendations);
+
+  return { results, recommendations, reportNarrative };
 }
 
 // ── Option B: score directly from a PDF document ──────────────────────────────
@@ -369,6 +602,13 @@ RECOMMENDATIONS RULES:
 - Prioritise by weighted gap: (5 − score) × weight.
 - Each "action": 1–2 sentences, specific to this document, written as a directive.
 - Each "expected_impact": 1 short line.
+
+REPORT NARRATIVE RULES:
+- Also write concise narrative fields for the canonical report sections.
+- Do NOT calculate or mention weighted totals; application code calculates totals.
+- Do NOT modify any dimension score in the narrative.
+- Each Q commentary should include strengths, gaps/risks, and suggested improvements.
+- Keep the wording consultant-style, specific to the supplied 5MAP, and concise.
 
 Return ONLY valid JSON — no markdown fences, no prose.`;
 
@@ -418,13 +658,23 @@ Return ONLY valid JSON — no markdown fences, no prose.`;
           required: ["target_dimension_id", "action", "expected_impact"],
         },
       },
+      report_narrative: narrativeSchema(),
     },
-    required: ["sections", "scores", "recommendations"],
+    required: ["sections", "scores", "recommendations", "report_narrative"],
   };
 
   const userPrompt = `Please evaluate this 5MAP document.\n\nRUBRIC:\n${rubricText}\n\nReturn JSON matching this schema:\n${JSON.stringify(responseSchema, null, 2)}`;
 
-  const response = await client().messages.create({
+  const parsed = await parseJsonWithRetry<{
+    sections: Sections;
+    scores: Record<string, { score: number; rationale: string; key_evidence: string }>;
+    recommendations?: Array<{
+      target_dimension_id: string;
+      action: string;
+      expected_impact: string;
+    }>;
+    report_narrative?: RawReportNarrative;
+  }>({
     model: "claude-opus-4-7",
     max_tokens: 4096,
     system: systemPrompt,
@@ -442,19 +692,7 @@ Return ONLY valid JSON — no markdown fences, no prose.`;
         ] as unknown as Anthropic.MessageParam["content"],
       },
     ],
-  });
-
-  const raw = response.content[0].type === "text" ? response.content[0].text : "{}";
-  const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
-  const parsed = JSON.parse(cleaned) as {
-    sections: Sections;
-    scores: Record<string, { score: number; rationale: string; key_evidence: string }>;
-    recommendations?: Array<{
-      target_dimension_id: string;
-      action: string;
-      expected_impact: string;
-    }>;
-  };
+  }, responseSchema, "scoreFromPdf");
 
   // Extract sections
   const sections: Sections = {
@@ -504,5 +742,7 @@ Return ONLY valid JSON — no markdown fences, no prose.`;
       };
     });
 
-  return { sections, results, recommendations };
+  const reportNarrative = normalizeReportNarrative(parsed.report_narrative, results, recommendations);
+
+  return { sections, results, recommendations, reportNarrative };
 }

@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import { parsePptx } from "@/lib/parsePptx";
 import { readPdfAsBase64 } from "@/lib/parsePdf";
+import { canonicalHeading, TARGETED_RECOMMENDATIONS_PLACEMENT } from "@/lib/reportFormat";
 import type { ParseError } from "@/lib/types";
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
@@ -26,6 +27,33 @@ interface Recommendation {
   expectedImpact: string;
 }
 
+interface Sections {
+  q1: string;
+  q2: string;
+  q3: string;
+  q4: string;
+  q5: string;
+}
+
+interface QuestionCommentary {
+  strengths: string;
+  gapsRisks: string;
+  suggestedImprovements: string;
+}
+
+interface ReportNarrative {
+  purposeOfBriefingNote: string;
+  alignmentToHigherIntent: string;
+  commentaryIntro: string;
+  q1Commentary: QuestionCommentary;
+  q2Commentary: QuestionCommentary;
+  q3Commentary: QuestionCommentary;
+  q4Commentary: QuestionCommentary;
+  q5Commentary: QuestionCommentary;
+  overallAssessment: string;
+  appendixRationale: { dimensionId: string; rationale: string }[];
+}
+
 interface EvalResult {
   total: number;
   band: string;
@@ -34,6 +62,8 @@ interface EvalResult {
   strengths: string[];
   improvements: string[];
   recommendations: Recommendation[];
+  reportNarrative?: ReportNarrative;
+  _sections?: Sections;
 }
 
 /* ── Helpers ────────────────────────────────────────────────────────────────── */
@@ -54,6 +84,22 @@ function dots(score: number) {
   return "●".repeat(score) + "○".repeat(5 - score);
 }
 
+function excerpt(text: string | undefined, max = 520) {
+  const cleaned = (text ?? "").replace(/\s+/g, " ").trim();
+  if (!cleaned) return "The relevant source section was not clearly identified in the submitted 5MAP.";
+  return cleaned.length > max ? `${cleaned.slice(0, max).trim()}…` : cleaned;
+}
+
+function overallAssessmentText(total: number) {
+  if (total < 3) {
+    return "The intent is weak and should be rewritten before operational use. Focus first on sharpening the mission statement and ensuring it clearly states the desired outcome and why it matters.";
+  }
+  if (total < 4) {
+    return "The intent is usable but has meaningful gaps. Priority improvements should strengthen dimensions below 3 first, then address dimensions at 3/5 to bring the document to a high standard.";
+  }
+  return "The intent is strong. Light refinement on lower-scoring dimensions will bring it to an exceptional standard suitable for full operational deployment.";
+}
+
 /* ── Report component ────────────────────────────────────────────────────────── */
 
 function Report({ result }: { result: EvalResult }) {
@@ -62,6 +108,51 @@ function Report({ result }: { result: EvalResult }) {
 
   const sectionOrder = ["A", "B", "C"];
   const sectionDims = (s: string) => result.dimensions.filter((d) => d.section === s);
+  const dim = (id: string) => result.dimensions.find((d) => d.id === id);
+  const qSections = result._sections ?? { q1: "", q2: "", q3: "", q4: "", q5: "" };
+  const alignment = dim("alignment_higher_direction");
+  const taskAlignment = dim("alignment_tasks");
+  const clarityOutcome = dim("clarity_outcome");
+  const decentralisedUtility = dim("decentralised_utility");
+  const testability = dim("testability");
+  const fallbackQuestion = (dimension: DimensionResult | undefined, suggested: string): QuestionCommentary => ({
+    strengths: dimension
+      ? `${dimension.name} currently scores ${dimension.score}/5.`
+      : "Relevant strengths should be reviewed against the scored dimensions.",
+    gapsRisks: dimension?.rationale ?? "No specific rationale was returned for this section.",
+    suggestedImprovements: suggested,
+  });
+  const narrative: ReportNarrative = result.reportNarrative ?? {
+    purposeOfBriefingNote:
+      "This briefing note evaluates the submitted 5MAP against the Leading Change weighted rubric and identifies the most useful refinements before wider use.",
+    alignmentToHigherIntent:
+      alignment?.rationale ??
+      "Alignment to higher intent should be reviewed against Q1 and the wider business context.",
+    commentaryIntro:
+      "The commentary below summarises strengths, gaps, and suggested improvements by 5MAP question.",
+    q1Commentary: fallbackQuestion(
+      alignment,
+      "Make the link to the boss's intent, wider strategy, and current business situation explicit enough that teams can repeat it."
+    ),
+    q2Commentary: fallbackQuestion(
+      clarityOutcome,
+      "Keep the intent statement outcome-led, concise, and measurable, separating success measures from explanatory narrative where possible."
+    ),
+    q3Commentary: fallbackQuestion(
+      taskAlignment,
+      "Ensure each task clearly advances the intent and identify the main effort so teams can prioritise when resources are constrained."
+    ),
+    q4Commentary: fallbackQuestion(
+      decentralisedUtility,
+      "Clarify freedoms, constraints, escalation points, and trade-offs so teams know what they can decide without further permission."
+    ),
+    q5Commentary: fallbackQuestion(
+      testability,
+      "Add specific review cadence, assumptions, questions for the boss, and measurable indicators that show whether the intent is working."
+    ),
+    overallAssessment: overallAssessmentText(result.total),
+    appendixRationale: result.dimensions.map((d) => ({ dimensionId: d.id, rationale: d.rationale })),
+  };
 
   return (
     <div style={{ maxWidth: 820, margin: "0 auto" }}>
@@ -105,15 +196,16 @@ function Report({ result }: { result: EvalResult }) {
           padding: "40px 48px",
         }}
       >
-        <h1>5MAP EVALUATION REPORT</h1>
+        <h1>{canonicalHeading(1).toUpperCase()}</h1>
         <div className="meta">
+          <div>Title: 5MAP Evaluation Report</div>
           <div>Date: {now}</div>
           <div>Rubric version: weighted_rubric_v2025_12_01</div>
           <div>Scoring: Test AI Version</div>
         </div>
 
-        {/* 1. Executive Summary */}
-        <h2>1. Executive Summary</h2>
+        {/* 2. Executive Summary */}
+        <h2>{canonicalHeading(2)}</h2>
         <p>
           This 5MAP scored <strong>{result.total.toFixed(2)}/5.00</strong>, placing it in the band:{" "}
           <strong>{result.band}</strong>
@@ -125,8 +217,21 @@ function Report({ result }: { result: EvalResult }) {
           <strong>Priority improvement areas:</strong> {result.improvements.join(", ")}.
         </p>
 
-        {/* 2. Dimension Scores */}
-        <h2>2. Dimension Scores</h2>
+        {/* 3. Purpose */}
+        <h2>{canonicalHeading(3)}</h2>
+        <p>{narrative.purposeOfBriefingNote}</p>
+
+        {/* 4. Alignment */}
+        <h2>{canonicalHeading(4)}</h2>
+        <p>{narrative.alignmentToHigherIntent}</p>
+        {alignment?.keyEvidence && (
+          <blockquote>
+            <span>[5MAP input]</span> &ldquo;{alignment.keyEvidence}&rdquo;
+          </blockquote>
+        )}
+
+        {/* 5. Dimension Scores */}
+        <h2>{canonicalHeading(5)}</h2>
         {sectionOrder.map((sec) => (
           <div key={sec} style={{ marginBottom: 24 }}>
             <div
@@ -201,8 +306,8 @@ function Report({ result }: { result: EvalResult }) {
           </div>
         ))}
 
-        {/* 3. Score Summary */}
-        <h2>3. Score Summary</h2>
+        {/* 6. Total Weighted Score */}
+        <h2>{canonicalHeading(6)}</h2>
         <table style={{ maxWidth: 420 }}>
           <thead>
             <tr>
@@ -236,8 +341,10 @@ function Report({ result }: { result: EvalResult }) {
           </tbody>
         </table>
 
-        {/* 4. Targeted Improvement Recommendations */}
-        <h2>4. Targeted Improvement Recommendations</h2>
+        {/* 7. Commentary introduction + targeted recommendations */}
+        <h2>{canonicalHeading(7)}</h2>
+        <p>{narrative.commentaryIntro}</p>
+        <h3>{TARGETED_RECOMMENDATIONS_PLACEMENT.label}</h3>
         {result.recommendations.length === 0 ? (
           <p style={{ fontStyle: "italic", color: "#4b5563" }}>
             No high-impact improvements identified — this intent is already operating at a strong
@@ -298,8 +405,83 @@ function Report({ result }: { result: EvalResult }) {
           </div>
         )}
 
-        {/* 5. Overall Assessment */}
-        <h2>5. Overall Assessment</h2>
+        {/* 8. Q1 */}
+        <h2>{canonicalHeading(8)}</h2>
+        <p>
+          <strong>Strengths:</strong> {narrative.q1Commentary.strengths}
+        </p>
+        <p>
+          <strong>Gaps / risks:</strong> {narrative.q1Commentary.gapsRisks}
+        </p>
+        <p>
+          <strong>Suggested improvements:</strong> {narrative.q1Commentary.suggestedImprovements}
+        </p>
+        <blockquote>
+          <span>Q1 source excerpt</span> {excerpt(qSections.q1)}
+        </blockquote>
+
+        {/* 9. Q2 */}
+        <h2>{canonicalHeading(9)}</h2>
+        <p>
+          <strong>Strengths:</strong> {narrative.q2Commentary.strengths}
+        </p>
+        <p>
+          <strong>Gaps / risks:</strong> {narrative.q2Commentary.gapsRisks}
+        </p>
+        <p>
+          <strong>Suggested improvements:</strong> {narrative.q2Commentary.suggestedImprovements}
+        </p>
+        <blockquote>
+          <span>Q2 source excerpt</span> {excerpt(qSections.q2)}
+        </blockquote>
+
+        {/* 10. Q3 */}
+        <h2>{canonicalHeading(10)}</h2>
+        <p>
+          <strong>Strengths:</strong> {narrative.q3Commentary.strengths}
+        </p>
+        <p>
+          <strong>Gaps / risks:</strong> {narrative.q3Commentary.gapsRisks}
+        </p>
+        <p>
+          <strong>Suggested improvements:</strong> {narrative.q3Commentary.suggestedImprovements}
+        </p>
+        <blockquote>
+          <span>Q3 source excerpt</span> {excerpt(qSections.q3)}
+        </blockquote>
+
+        {/* 11. Q4 */}
+        <h2>{canonicalHeading(11)}</h2>
+        <p>
+          <strong>Strengths:</strong> {narrative.q4Commentary.strengths}
+        </p>
+        <p>
+          <strong>Gaps / risks:</strong> {narrative.q4Commentary.gapsRisks}
+        </p>
+        <p>
+          <strong>Suggested improvements:</strong> {narrative.q4Commentary.suggestedImprovements}
+        </p>
+        <blockquote>
+          <span>Q4 source excerpt</span> {excerpt(qSections.q4)}
+        </blockquote>
+
+        {/* 12. Q5 */}
+        <h2>{canonicalHeading(12)}</h2>
+        <p>
+          <strong>Strengths:</strong> {narrative.q5Commentary.strengths}
+        </p>
+        <p>
+          <strong>Gaps / risks:</strong> {narrative.q5Commentary.gapsRisks}
+        </p>
+        <p>
+          <strong>Suggested improvements:</strong> {narrative.q5Commentary.suggestedImprovements}
+        </p>
+        <blockquote>
+          <span>Q5 source excerpt</span> {excerpt(qSections.q5)}
+        </blockquote>
+
+        {/* 13. Overall Assessment */}
+        <h2>{canonicalHeading(13)}</h2>
         <div
           style={{
             background: "#fafafa",
@@ -314,27 +496,36 @@ function Report({ result }: { result: EvalResult }) {
           <p>
             Score <strong>{result.total.toFixed(2)}/5.00</strong> — <strong>{result.band}</strong>
           </p>
-          {result.total < 3 && (
-            <p>
-              The intent is weak and should be rewritten before operational use. Focus first on
-              sharpening the mission statement (Q2) and ensuring it clearly states the desired
-              outcome and why it matters.
-            </p>
-          )}
-          {result.total >= 3 && result.total < 4 && (
-            <p>
-              The intent is usable but has meaningful gaps. Priority improvements: strengthen
-              the dimensions scoring below 3 before sharing externally, then address dimensions at
-              3/5 to bring the document to a high standard.
-            </p>
-          )}
-          {result.total >= 4 && (
-            <p>
-              The intent is strong. Light refinement on lower-scoring dimensions will bring it
-              to an exceptional standard suitable for full operational deployment.
-            </p>
-          )}
+          <p>{narrative.overallAssessment}</p>
         </div>
+
+        {/* 14. Appendix */}
+        <h2>{canonicalHeading(14)}</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Dimension</th>
+              <th style={{ textAlign: "center" }}>Section</th>
+              <th style={{ textAlign: "center" }}>Score</th>
+              <th style={{ textAlign: "right" }}>Weighted</th>
+              <th>Rationale</th>
+            </tr>
+          </thead>
+          <tbody>
+            {result.dimensions.map((d) => (
+              <tr key={`appendix-${d.id}`}>
+                <td style={{ fontWeight: 600 }}>{d.name}</td>
+                <td style={{ textAlign: "center" }}>{d.section}</td>
+                <td style={{ textAlign: "center" }}>{d.score}/5</td>
+                <td style={{ textAlign: "right" }}>{d.weightedScore.toFixed(2)}</td>
+                <td>
+                  {narrative.appendixRationale.find((item) => item.dimensionId === d.id)?.rationale ??
+                    d.rationale}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {/* Download */}

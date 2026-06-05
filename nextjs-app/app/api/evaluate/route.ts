@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { identifySections, scoreAllDimensions, scoreFromPdf } from "@/lib/evaluator";
+import { isClaudeJsonParseError, userFacingJsonErrorMessage } from "@/lib/json";
 import {
   totalWeightedScore,
   interpretationBand,
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const { sections, results, recommendations } = await scoreFromPdf(pdfBase64);
+      const { sections, results, recommendations, reportNarrative } = await scoreFromPdf(pdfBase64);
 
       const scoresMap = Object.fromEntries(results.map((r) => [r.id, r.score]));
       const total = totalWeightedScore(scoresMap);
@@ -49,11 +50,14 @@ export async function POST(req: NextRequest) {
         strengths: sorted.slice(0, 3).map((r) => r.name),
         improvements: sorted.slice(-3).reverse().map((r) => r.name),
         recommendations,
+        reportNarrative,
         // PDF mode also returns identified sections for debugging / display
         _sections: sections,
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = isClaudeJsonParseError(err)
+        ? userFacingJsonErrorMessage()
+        : err instanceof Error ? err.message : String(err);
       return NextResponse.json({ error: `PDF evaluation failed: ${message}` }, { status: 500 });
     }
   }
@@ -72,7 +76,7 @@ export async function POST(req: NextRequest) {
     const sections = await identifySections(text);
 
     // Step 2 — score all 9 dimensions + recommendations in one Claude call
-    const { results, recommendations } = await scoreAllDimensions(sections);
+    const { results, recommendations, reportNarrative } = await scoreAllDimensions(sections);
 
     // Step 3 — calculate totals
     const scoresMap = Object.fromEntries(results.map((r) => [r.id, r.score]));
@@ -96,9 +100,13 @@ export async function POST(req: NextRequest) {
       strengths,
       improvements,
       recommendations,
+      reportNarrative,
+      _sections: sections,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = isClaudeJsonParseError(err)
+      ? userFacingJsonErrorMessage()
+      : err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: `Evaluation failed: ${message}` }, { status: 500 });
   }
 }

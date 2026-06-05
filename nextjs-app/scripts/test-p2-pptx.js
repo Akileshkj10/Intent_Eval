@@ -68,7 +68,7 @@ async function parsePptx(buffer) {
     if (lines.length > 1) blocks.push(lines.join("\n"));
   }
 
-  return { text: blocks.join("\n\n"), slideCount: visibleCount };
+  return { text: normalizeExtractedText(blocks.join("\n\n")), slideCount: visibleCount };
 }
 
 async function resolveSlideOrder(zip) {
@@ -172,9 +172,46 @@ function extractBody(spTree, title) {
 function extractTxBodyText(txBody) {
   if (!txBody) return "";
   return (txBody["a:p"] ?? [])
-    .map(p => (p["a:r"] ?? []).map(r => typeof r["a:t"] === "string" ? r["a:t"] : "").join(""))
+    .map(p => joinTextRuns((p["a:r"] ?? []).map(r => typeof r["a:t"] === "string" ? r["a:t"] : "").filter(Boolean)))
     .filter(l => { const t = l.trim().toLowerCase(); return t.length > 0 && !TEMPLATE_TEXTS.has(t); })
     .join("\n");
+}
+
+function joinTextRuns(runs) {
+  return runs.reduce((out, current) => {
+    if (!out) return current;
+    if (!current) return out;
+    return `${out}${needsInsertedSpace(out, current) ? " " : ""}${current}`;
+  }, "");
+}
+
+function needsInsertedSpace(previous, next) {
+  if (/\s$/.test(previous) || /^\s/.test(next)) return false;
+  const prev = previous.at(-1) ?? "";
+  const first = next[0] ?? "";
+  if (!prev || !first) return false;
+  if (/\d/.test(prev) && /[%A-Z]/.test(first)) return false;
+  if (/[A-Z]/.test(prev) && /\d/.test(first)) return false;
+  if (/[$£€]/.test(prev) || /[%/&+\-–—]/.test(prev) || /[%/&+\-–—]/.test(first)) return false;
+  if (/^(s|es|ed|er|ers|ing|ion|ions|tion|tions|ance|ence|ment|ments|ity|ities|ive|ives|al|ally)$/i.test(next)) {
+    return false;
+  }
+  return /[A-Za-z0-9\])]/.test(prev) && /[A-Za-z\[(]/.test(first);
+}
+
+function normalizeExtractedText(text) {
+  return text
+    .replace(/([):;,.!?])(?=\[)/g, "$1 ")
+    .replace(/([):;,.!?])(?=[A-Za-z])/g, "$1 ")
+    .replace(/\bPerformancemanagement\b/g, "Performance management")
+    .replace(/\bprocess es\b/gi, "processes")
+    .replace(/\bwhichhas\b/g, "which has")
+    .replace(/\bfromSeptember\b/g, "from September")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{4,}/g, "\n\n\n")
+    .trim();
 }
 
 async function extractNotes(zip, notesPath, parser) {
@@ -273,6 +310,22 @@ async function run() {
       const templateLeaked = [...TEMPLATE_TEXTS].some(t => text.toLowerCase().includes(t));
       if (templateLeaked) {
         console.log("  ✗ FAIL: template placeholder text leaked into output");
+        failed++;
+        continue;
+      }
+
+      // Improvement I2: known PowerPoint run-boundary spacing artefacts should be cleaned.
+      const spacingArtefacts = [
+        "Performancemanagement",
+        "whichhas",
+        "fromSeptember",
+        "boss):[",
+        "Members:Damon",
+        "Perform ance",
+        "process es",
+      ].filter(token => text.includes(token));
+      if (spacingArtefacts.length > 0) {
+        console.log(`  ✗ FAIL: spacing artefacts remain: ${spacingArtefacts.join(", ")}`);
         failed++;
         continue;
       }

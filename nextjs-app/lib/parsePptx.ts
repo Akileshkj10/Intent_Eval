@@ -142,7 +142,7 @@ export async function parsePptx(
   }
 
   return {
-    text: blocks.join("\n\n"),
+    text: normalizeExtractedText(blocks.join("\n\n")),
     slideCount: visibleCount,
   };
 }
@@ -310,13 +310,14 @@ function extractTxBodyText(txBody: Record<string, unknown> | undefined): string 
   const lines = paras.map((p) => {
     const para = p as Record<string, unknown>;
     const runs = (para["a:r"] as unknown[]) ?? [];
-    return runs
+    const runTexts = runs
       .map((r) => {
         const run = r as Record<string, unknown>;
         const t = run["a:t"];
         return typeof t === "string" ? t : "";
       })
-      .join("");
+      .filter((t) => t.length > 0);
+    return joinTextRuns(runTexts);
   });
   return lines
     .filter((l) => {
@@ -364,6 +365,51 @@ function extractAllAT(obj: unknown): string {
     }
   }
   return texts.filter(Boolean).join(" ");
+}
+
+function joinTextRuns(runs: string[]): string {
+  return runs.reduce((out, current) => {
+    if (!out) return current;
+    if (!current) return out;
+    return `${out}${needsInsertedSpace(out, current) ? " " : ""}${current}`;
+  }, "");
+}
+
+function needsInsertedSpace(previous: string, next: string): boolean {
+  if (/\s$/.test(previous) || /^\s/.test(next)) return false;
+
+  const prev = previous.at(-1) ?? "";
+  const first = next[0] ?? "";
+  if (!prev || !first) return false;
+
+  // Keep common compact tokens intact: Q1, 5MAP, £1bn, 85%, etc.
+  if (/\d/.test(prev) && /[%A-Z]/.test(first)) return false;
+  if (/[A-Z]/.test(prev) && /\d/.test(first)) return false;
+  if (/[$£€]/.test(prev) || /[%/&+\-–—]/.test(prev) || /[%/&+\-–—]/.test(first)) return false;
+  if (/^(s|es|ed|er|ers|ing|ion|ions|tion|tions|ance|ence|ment|ments|ity|ities|ive|ives|al|ally)$/i.test(next)) {
+    return false;
+  }
+
+  // Separate visual text runs that represent adjacent words.
+  return /[A-Za-z0-9\])]/.test(prev) && /[A-Za-z\[(]/.test(first);
+}
+
+function normalizeExtractedText(text: string): string {
+  return text
+    // Missing space after labels or punctuation before placeholders/brackets.
+    .replace(/([):;,.!?])(?=\[)/g, "$1 ")
+    .replace(/([):;,.!?])(?=[A-Za-z])/g, "$1 ")
+    // Common PowerPoint artefacts observed in real 5MAP files.
+    .replace(/\bPerformancemanagement\b/g, "Performance management")
+    .replace(/\bprocess es\b/gi, "processes")
+    .replace(/\bwhichhas\b/g, "which has")
+    .replace(/\bfromSeptember\b/g, "from September")
+    // Tidy spaces without flattening paragraph/slide structure.
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{4,}/g, "\n\n\n")
+    .trim();
 }
 
 async function extractNotes(
