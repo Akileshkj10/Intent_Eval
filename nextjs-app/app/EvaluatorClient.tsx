@@ -84,25 +84,6 @@ function dots(score: number) {
   return "●".repeat(score) + "○".repeat(5 - score);
 }
 
-function sourceExcerpt(text: string | undefined) {
-  const cleaned = (text ?? "").replace(/\s+/g, " ").trim();
-  if (!cleaned) return "The relevant source section was not clearly identified in the submitted 5MAP.";
-
-  const readable = cleaned
-    .replace(/\s*[-•]\s*/g, "; ")
-    .replace(/\s*>>\s*/g, "; ")
-    .replace(/;\s*;/g, "; ")
-    .trim();
-
-  const max = 420;
-  if (readable.length <= max) return readable;
-
-  const window = readable.slice(0, max);
-  const cutAt = Math.max(window.lastIndexOf(". "), window.lastIndexOf("; "), window.lastIndexOf(", "));
-  const softCut = cutAt > 260 ? cutAt + 1 : max;
-  return `${readable.slice(0, softCut).trim()}…`;
-}
-
 function overallAssessmentText(total: number) {
   if (total < 3) {
     return "The intent is weak and should be rewritten before operational use. Focus first on sharpening the mission statement and ensuring it clearly states the desired outcome and why it matters.";
@@ -122,7 +103,6 @@ function Report({ result }: { result: EvalResult }) {
   const sectionOrder = ["A", "B", "C"];
   const sectionDims = (s: string) => result.dimensions.filter((d) => d.section === s);
   const dim = (id: string) => result.dimensions.find((d) => d.id === id);
-  const qSections = result._sections ?? { q1: "", q2: "", q3: "", q4: "", q5: "" };
   const alignment = dim("alignment_higher_direction");
   const taskAlignment = dim("alignment_tasks");
   const clarityOutcome = dim("clarity_outcome");
@@ -429,9 +409,6 @@ function Report({ result }: { result: EvalResult }) {
         <p>
           <strong>Suggested improvements:</strong> {narrative.q1Commentary.suggestedImprovements}
         </p>
-        <blockquote className="source-excerpt">
-          <span>Q1 source excerpt</span> {sourceExcerpt(qSections.q1)}
-        </blockquote>
 
         {/* 9. Q2 */}
         <h2>{canonicalHeading(9)}</h2>
@@ -444,9 +421,6 @@ function Report({ result }: { result: EvalResult }) {
         <p>
           <strong>Suggested improvements:</strong> {narrative.q2Commentary.suggestedImprovements}
         </p>
-        <blockquote className="source-excerpt">
-          <span>Q2 source excerpt</span> {sourceExcerpt(qSections.q2)}
-        </blockquote>
 
         {/* 10. Q3 */}
         <h2>{canonicalHeading(10)}</h2>
@@ -459,9 +433,6 @@ function Report({ result }: { result: EvalResult }) {
         <p>
           <strong>Suggested improvements:</strong> {narrative.q3Commentary.suggestedImprovements}
         </p>
-        <blockquote className="source-excerpt">
-          <span>Q3 source excerpt</span> {sourceExcerpt(qSections.q3)}
-        </blockquote>
 
         {/* 11. Q4 */}
         <h2>{canonicalHeading(11)}</h2>
@@ -474,9 +445,6 @@ function Report({ result }: { result: EvalResult }) {
         <p>
           <strong>Suggested improvements:</strong> {narrative.q4Commentary.suggestedImprovements}
         </p>
-        <blockquote className="source-excerpt">
-          <span>Q4 source excerpt</span> {sourceExcerpt(qSections.q4)}
-        </blockquote>
 
         {/* 12. Q5 */}
         <h2>{canonicalHeading(12)}</h2>
@@ -489,9 +457,6 @@ function Report({ result }: { result: EvalResult }) {
         <p>
           <strong>Suggested improvements:</strong> {narrative.q5Commentary.suggestedImprovements}
         </p>
-        <blockquote className="source-excerpt">
-          <span>Q5 source excerpt</span> {sourceExcerpt(qSections.q5)}
-        </blockquote>
 
         {/* 13. Overall Assessment */}
         <h2>{canonicalHeading(13)}</h2>
