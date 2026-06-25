@@ -84,10 +84,23 @@ function dots(score: number) {
   return "●".repeat(score) + "○".repeat(5 - score);
 }
 
-function excerpt(text: string | undefined, max = 520) {
+function sourceExcerpt(text: string | undefined) {
   const cleaned = (text ?? "").replace(/\s+/g, " ").trim();
   if (!cleaned) return "The relevant source section was not clearly identified in the submitted 5MAP.";
-  return cleaned.length > max ? `${cleaned.slice(0, max).trim()}…` : cleaned;
+
+  const readable = cleaned
+    .replace(/\s*[-•]\s*/g, "; ")
+    .replace(/\s*>>\s*/g, "; ")
+    .replace(/;\s*;/g, "; ")
+    .trim();
+
+  const max = 420;
+  if (readable.length <= max) return readable;
+
+  const window = readable.slice(0, max);
+  const cutAt = Math.max(window.lastIndexOf(". "), window.lastIndexOf("; "), window.lastIndexOf(", "));
+  const softCut = cutAt > 260 ? cutAt + 1 : max;
+  return `${readable.slice(0, softCut).trim()}…`;
 }
 
 function overallAssessmentText(total: number) {
@@ -416,8 +429,8 @@ function Report({ result }: { result: EvalResult }) {
         <p>
           <strong>Suggested improvements:</strong> {narrative.q1Commentary.suggestedImprovements}
         </p>
-        <blockquote>
-          <span>Q1 source excerpt</span> {excerpt(qSections.q1)}
+        <blockquote className="source-excerpt">
+          <span>Q1 source excerpt</span> {sourceExcerpt(qSections.q1)}
         </blockquote>
 
         {/* 9. Q2 */}
@@ -431,8 +444,8 @@ function Report({ result }: { result: EvalResult }) {
         <p>
           <strong>Suggested improvements:</strong> {narrative.q2Commentary.suggestedImprovements}
         </p>
-        <blockquote>
-          <span>Q2 source excerpt</span> {excerpt(qSections.q2)}
+        <blockquote className="source-excerpt">
+          <span>Q2 source excerpt</span> {sourceExcerpt(qSections.q2)}
         </blockquote>
 
         {/* 10. Q3 */}
@@ -446,8 +459,8 @@ function Report({ result }: { result: EvalResult }) {
         <p>
           <strong>Suggested improvements:</strong> {narrative.q3Commentary.suggestedImprovements}
         </p>
-        <blockquote>
-          <span>Q3 source excerpt</span> {excerpt(qSections.q3)}
+        <blockquote className="source-excerpt">
+          <span>Q3 source excerpt</span> {sourceExcerpt(qSections.q3)}
         </blockquote>
 
         {/* 11. Q4 */}
@@ -461,8 +474,8 @@ function Report({ result }: { result: EvalResult }) {
         <p>
           <strong>Suggested improvements:</strong> {narrative.q4Commentary.suggestedImprovements}
         </p>
-        <blockquote>
-          <span>Q4 source excerpt</span> {excerpt(qSections.q4)}
+        <blockquote className="source-excerpt">
+          <span>Q4 source excerpt</span> {sourceExcerpt(qSections.q4)}
         </blockquote>
 
         {/* 12. Q5 */}
@@ -476,8 +489,8 @@ function Report({ result }: { result: EvalResult }) {
         <p>
           <strong>Suggested improvements:</strong> {narrative.q5Commentary.suggestedImprovements}
         </p>
-        <blockquote>
-          <span>Q5 source excerpt</span> {excerpt(qSections.q5)}
+        <blockquote className="source-excerpt">
+          <span>Q5 source excerpt</span> {sourceExcerpt(qSections.q5)}
         </blockquote>
 
         {/* 13. Overall Assessment */}
