@@ -63,6 +63,7 @@ interface EvalResult {
   improvements: string[];
   recommendations: Recommendation[];
   reportNarrative?: ReportNarrative;
+  sectionWarning?: string;
   _sections?: Sections;
 }
 
@@ -97,8 +98,39 @@ function overallAssessmentText(total: number) {
 /* ── Report component ────────────────────────────────────────────────────────── */
 
 function Report({ result }: { result: EvalResult }) {
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState("");
+
   const col = bandColour(result.total);
   const now = new Date().toISOString().split("T")[0];
+
+  async function handleDownloadPdf() {
+    setPdfLoading(true);
+    setPdfError("");
+    try {
+      const res = await fetch("/api/export-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(result),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error ?? `Server error ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "5MAP-evaluation.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setPdfError(err instanceof Error ? err.message : "PDF generation failed.");
+    } finally {
+      setPdfLoading(false);
+    }
+  }
 
   const sectionOrder = ["A", "B", "C"];
   const sectionDims = (s: string) => result.dimensions.filter((d) => d.section === s);
@@ -506,31 +538,105 @@ function Report({ result }: { result: EvalResult }) {
         </table>
       </div>
 
-      {/* Download */}
-      <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end" }}>
-        <button
-          onClick={() => {
-            const json = JSON.stringify(result, null, 2);
-            const blob = new Blob([json], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = "5map_evaluation.json";
-            a.click();
-          }}
-          style={{
-            background: "#0f172a",
-            color: "#f1f5f9",
-            border: "none",
-            borderRadius: 6,
-            padding: "10px 20px",
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          Download JSON
-        </button>
+      {/* Download bar */}
+      <div style={{ marginTop: 20 }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
+          {/* Download as PDF */}
+          <button
+            onClick={handleDownloadPdf}
+            disabled={pdfLoading}
+            style={{
+              background: pdfLoading ? "#94a3b8" : "#1d4ed8",
+              color: "#fff",
+              border: "none",
+              borderRadius: 6,
+              padding: "10px 20px",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: pdfLoading ? "not-allowed" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              transition: "background 0.15s",
+            }}
+          >
+            {pdfLoading && (
+              <span
+                style={{
+                  display: "inline-block",
+                  width: 13,
+                  height: 13,
+                  border: "2px solid rgba(255,255,255,0.4)",
+                  borderTopColor: "#fff",
+                  borderRadius: "50%",
+                  animation: "spin 0.8s linear infinite",
+                }}
+              />
+            )}
+            {pdfLoading ? "Generating PDF…" : "Download as PDF"}
+          </button>
+
+          {/* Download JSON */}
+          <button
+            onClick={() => {
+              const json = JSON.stringify(result, null, 2);
+              const blob = new Blob([json], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = "5map_evaluation.json";
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            style={{
+              background: "#0f172a",
+              color: "#f1f5f9",
+              border: "none",
+              borderRadius: 6,
+              padding: "10px 20px",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Download JSON
+          </button>
+        </div>
+
+        {/* PDF generation error */}
+        {pdfError && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: 12,
+              marginTop: 10,
+              padding: "10px 14px",
+              background: "#fef2f2",
+              border: "1px solid #fca5a5",
+              borderRadius: 6,
+              fontSize: 13,
+              color: "#991b1b",
+            }}
+          >
+            <span>⚠ {pdfError}</span>
+            <button
+              onClick={() => setPdfError("")}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#991b1b",
+                fontSize: 16,
+                lineHeight: 1,
+                padding: "0 4px",
+                flexShrink: 0,
+              }}
+              title="Dismiss"
+            >×</button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -560,6 +666,7 @@ export default function Home() {
   const [status, setStatus] = useState("");
   const [result, setResult] = useState<EvalResult | null>(null);
   const [evalError, setEvalError] = useState("");
+  const [sectionWarningDismissed, setSectionWarningDismissed] = useState(false);
 
   // ── File upload state ───────────────────────────────────────────────────────
   const [pdfBase64, setPdfBase64] = useState<string | null>(null);
@@ -666,6 +773,7 @@ export default function Home() {
     setLoading(true);
     setResult(null);
     setEvalError("");
+    setSectionWarningDismissed(false);
 
     try {
       let body: Record<string, string>;
@@ -1040,6 +1148,52 @@ export default function Home() {
               onClick={() => setEvalError("")}
               style={{ background: "none", border: "none", cursor: "pointer", color: "#991b1b", fontSize: 16, lineHeight: 1, padding: "0 4px", flexShrink: 0 }}
             >×</button>
+          </div>
+        )}
+
+        {/* Section-detection warning */}
+        {result?.sectionWarning && !sectionWarningDismissed && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: 12,
+              padding: "14px 18px",
+              background: "#fffbeb",
+              border: "1px solid #fcd34d",
+              borderLeft: "4px solid #d97706",
+              borderRadius: 6,
+              marginBottom: 20,
+              fontSize: 14,
+              color: "#92400e",
+              lineHeight: 1.55,
+            }}
+          >
+            <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>⚠</span>
+              <span>
+                <strong>Section detection may be incomplete.</strong>{" "}
+                {result.sectionWarning}
+              </span>
+            </div>
+            <button
+              onClick={() => setSectionWarningDismissed(true)}
+              title="Dismiss"
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#92400e",
+                fontSize: 18,
+                lineHeight: 1,
+                padding: "0 4px",
+                flexShrink: 0,
+                opacity: 0.7,
+              }}
+            >
+              ×
+            </button>
           </div>
         )}
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { identifySections, scoreAllDimensions, scoreFromPdf } from "@/lib/evaluator";
+import { identifySections, scoreAllDimensions, scoreFromPdf, thinQFields } from "@/lib/evaluator";
 import { isClaudeJsonParseError, userFacingJsonErrorMessage } from "@/lib/json";
 import { requireSiteAuthRequest } from "@/lib/requireSiteAuth";
 import {
@@ -43,6 +43,12 @@ export async function POST(req: NextRequest) {
       const subtotals = sectionSubtotals(scoresMap);
       const sorted = [...results].sort((a, b) => b.score - a.score);
 
+      const thinPdf = thinQFields(sections);
+      const sectionWarning =
+        thinPdf.length >= 2
+          ? "Two or more Q sections appear to be empty or very short. The evaluation may be inaccurate — please check that the uploaded document contains all five Q sections and re-upload if needed."
+          : undefined;
+
       return NextResponse.json({
         total: Math.round(total * 100) / 100,
         band,
@@ -55,6 +61,7 @@ export async function POST(req: NextRequest) {
         improvements: sorted.slice(-3).reverse().map((r) => r.name),
         recommendations,
         reportNarrative,
+        ...(sectionWarning ? { sectionWarning } : {}),
         // PDF mode also returns identified sections for debugging / display
         _sections: sections,
       });
@@ -76,7 +83,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Step 1 — identify sections
+    // Step 1 — identify sections (two-pass: label extraction + content-inference fallback)
     const sections = await identifySections(text);
 
     // Step 2 — score all 9 dimensions + recommendations in one Claude call
@@ -93,6 +100,13 @@ export async function POST(req: NextRequest) {
     const strengths = sorted.slice(0, 3).map((r) => r.name);
     const improvements = sorted.slice(-3).reverse().map((r) => r.name);
 
+    // Step 5 — warn if Q sections are still thin after all passes
+    const thinText = thinQFields(sections);
+    const sectionWarning =
+      thinText.length >= 2
+        ? "Two or more Q sections appear to be empty or very short. The evaluation may be inaccurate — please check that the uploaded document contains all five Q sections and re-upload if needed."
+        : undefined;
+
     return NextResponse.json({
       total: Math.round(total * 100) / 100,
       band,
@@ -105,6 +119,7 @@ export async function POST(req: NextRequest) {
       improvements,
       recommendations,
       reportNarrative,
+      ...(sectionWarning ? { sectionWarning } : {}),
       _sections: sections,
     });
   } catch (err) {

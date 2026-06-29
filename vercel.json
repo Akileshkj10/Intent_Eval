@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "nextjs-app/app/api/export-pdf/route.ts": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  }
+}

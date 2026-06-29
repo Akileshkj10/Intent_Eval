@@ -14,6 +14,22 @@ import type { ParseError } from "./types";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
+/**
+ * Maximum characters taken from each slide's speaker notes when building the
+ * text string for section identification.
+ *
+ * Client 5MAP answers live in slide bodies, not notes. Speaker notes in legacy
+ * Leading Change templates can run to 1 000+ words of instructional coaching
+ * text — capping here prevents those notes from consuming the character budget
+ * before Q2–Q5 slides are reached, without any phrase-matching or false-positive
+ * risk. A genuine client note sentence is typically ≤ 150 chars, so 250 chars
+ * always captures any real content while cutting template bloat by ~95 %.
+ *
+ * Change this single constant if a different cap is needed; no other code changes
+ * are required.
+ */
+const NOTES_ID_CAP = 250;
+
 /** Boilerplate placeholder strings inserted by PowerPoint — skip these. */
 const TEMPLATE_TEXTS = new Set([
   "click to add title",
@@ -121,13 +137,22 @@ export async function parsePptx(
     const notesPath = await resolveNotesPath(zip, slidePath);
     const notes = notesPath ? await extractNotes(zip, notesPath, parser) : "";
 
-    // Build block
+    // Build block.
+    // Speaker notes are capped at NOTES_ID_CAP chars: client answers are in the
+    // slide body; template coaching notes in the notes field can be thousands of
+    // characters and would crowd out later slides in the identification pass.
     const headerLine = title
       ? `[Slide ${slideNumber} — "${title}"]`
       : `[Slide ${slideNumber}]`;
     const lines: string[] = [headerLine];
     if (body.trim()) lines.push(`Body:\n${body.trim()}`);
-    if (notes.trim()) lines.push(`Notes:\n${notes.trim()}`);
+    const notesTrimmed = notes.trim();
+    if (notesTrimmed) {
+      const notesForId = notesTrimmed.length > NOTES_ID_CAP
+        ? notesTrimmed.slice(0, NOTES_ID_CAP) + "…"
+        : notesTrimmed;
+      lines.push(`Notes:\n${notesForId}`);
+    }
 
     if (lines.length > 1) {
       blocks.push(lines.join("\n"));

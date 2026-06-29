@@ -60,6 +60,15 @@ export interface Sections {
   q5: string;
 }
 
+/**
+ * Extends Sections with metadata about which fields were inferred by the
+ * content-inference fallback (Pass 2) rather than extracted by label-matching
+ * (Pass 1). Only present when Pass 2 was triggered.
+ */
+export interface IdentifiedSections extends Sections {
+  lowConfidenceFields?: string[];
+}
+
 export interface DimensionResult {
   id: string;
   name: string;
@@ -324,29 +333,46 @@ function normalizeReportNarrative(
 
 // ── Step 1: identify Q1-Q5 sections ──────────────────────────────────────────
 
-/**
- * Identify Q1-Q5 sections from text.
- * @param text       Extracted text (from textarea, PPTX dump, etc.)
- * @param inputHint  Optional hint about the text source for a richer prompt.
- *                   "pptx" adds slide-aware extraction instructions.
- *                   "text" (default) uses the standard prompt.
- */
-export async function identifySections(
-  text: string,
-  inputHint: "pptx" | "text" = "text"
-): Promise<Sections> {
-  const schema = {
-    type: "object" as const,
-    properties: {
-      q1: { type: "string" },
-      q2: { type: "string" },
-      q3: { type: "string" },
-      q4: { type: "string" },
-      q5: { type: "string" },
-    },
-    required: ["q1", "q2", "q3", "q4", "q5"],
-  };
+/** Q field keys in order. */
+const Q_KEYS = ["q1", "q2", "q3", "q4", "q5"] as const;
 
+/**
+ * A Q field is considered "thin" if it has fewer than this many characters
+ * after trimming. Thin fields trigger the Pass 2 fallback and the
+ * sectionWarning API response field.
+ */
+const Q_THIN_THRESHOLD = 50;
+
+/**
+ * Returns the keys of Q fields that are empty or shorter than Q_THIN_THRESHOLD.
+ * Exported so the API route can compute sectionWarning without duplicating logic.
+ */
+export function thinQFields(sections: Sections): string[] {
+  return Q_KEYS.filter((k) => (sections[k]?.trim().length ?? 0) < Q_THIN_THRESHOLD);
+}
+
+/** Shared JSON schema for the Q1-Q5 extraction response. */
+const SECTIONS_SCHEMA = {
+  type: "object" as const,
+  properties: {
+    q1: { type: "string" },
+    q2: { type: "string" },
+    q3: { type: "string" },
+    q4: { type: "string" },
+    q5: { type: "string" },
+  },
+  required: ["q1", "q2", "q3", "q4", "q5"],
+};
+
+/**
+ * Pass 1 — label-based extraction (claude-sonnet-4-6).
+ * Handles the vast majority of documents where Q section labels are present.
+ * Expanded label variants support non-standard headings and multi-slide sections.
+ */
+async function runSectionPass1(
+  text: string,
+  inputHint: "pptx" | "text"
+): Promise<Sections> {
   const systemPrompt = `You are an expert in the 5MAP/5QMA strategic intent framework (Leading Change / Stephen Bungay).
 Given 5MAP content, extract and return the text for each of the five questions:
 - q1: Context and Higher Intent — the business situation, what the boss and boss's boss want.
@@ -356,7 +382,6 @@ Given 5MAP content, extract and return the text for each of the five questions:
 - q5: Backbrief / Achievability — performance review plan, questions for boss, questions for other teams.
 If a section is absent, return an empty string. Return only valid JSON matching the schema.`;
 
-  // PPTX-specific instructions added to the user prompt when input is from a presentation.
   const pptxContext =
     inputHint === "pptx"
       ? `IMPORTANT — this content was extracted from a PowerPoint presentation:
@@ -373,14 +398,114 @@ If a section is absent, return an empty string. Return only valid JSON matching 
 - Where a slide has no Q label, infer the section from its content and position.\n\n`
       : "";
 
-  const userPrompt = `${pptxContext}Extract Q1-Q5 sections from this 5MAP content:\n\n${text.slice(0, 10000)}\n\nJSON Schema:\n${JSON.stringify(schema)}`;
+  // 40 000-char limit gives headroom for multi-slide Q sections and long legacy
+  // PPTX templates without truncating Q2–Q5 before Claude can read them.
+  const userPrompt = `${pptxContext}Extract Q1-Q5 sections from this 5MAP content:\n\n${text.slice(0, 40000)}\n\nJSON Schema:\n${JSON.stringify(SECTIONS_SCHEMA)}`;
 
   return parseJsonWithRetry<Sections>({
     model: "claude-sonnet-4-6",
     max_tokens: 2048,
     system: systemPrompt,
     messages: [{ role: "user", content: userPrompt }],
-  }, schema, "identifySections");
+  }, SECTIONS_SCHEMA, "identifySections-pass1");
+}
+
+/**
+ * Pass 2 — content-inference fallback (claude-opus-4-7).
+ * Only triggered when Pass 1 leaves ≥2 Q fields thin or empty.
+ * Infers section assignment from content meaning and position without
+ * relying on labels.
+ */
+async function runSectionPass2(text: string): Promise<Sections> {
+  const systemPrompt = `You are an expert in the 5MAP/5QMA strategic intent framework (Leading Change / Stephen Bungay).
+The document uses non-standard or absent Q section labels.
+Infer which content belongs to each of the five questions based on:
+1. The typical 5MAP/5QMA structure and content patterns.
+2. The order in which content appears in the document.
+3. The meaning and topics present in each part of the text.
+
+The five questions are:
+- Q1 (Context): The business situation — what the boss and boss's boss want, external and internal factors, performance context.
+- Q2 (Intent): The mission statement — what we intend to achieve and why, KPIs, measures of success.
+- Q3 (Tasks): What needs to happen to achieve the intent — implied tasks, main effort, priorities, actions.
+- Q4 (Boundaries): What the team can and cannot do — freedoms, constraints, escalation points, trade-offs.
+- Q5 (Backbrief): Performance review plan, questions for boss, achievability check, assumptions.
+
+Assign content to the most likely Q, even if uncertain. Do not leave fields empty if any relevant content exists.
+Return only valid JSON matching the schema.`;
+
+  const userPrompt = `Infer Q1-Q5 sections from this 5MAP content (section labels may be absent or non-standard):\n\n${text.slice(0, 40000)}\n\nJSON Schema:\n${JSON.stringify(SECTIONS_SCHEMA)}`;
+
+  return parseJsonWithRetry<Sections>({
+    model: "claude-opus-4-7",
+    max_tokens: 3000,
+    system: systemPrompt,
+    messages: [{ role: "user", content: userPrompt }],
+  }, SECTIONS_SCHEMA, "identifySections-pass2");
+}
+
+/**
+ * Identify Q1-Q5 sections from text using a two-pass strategy.
+ *
+ * Pass 1 (Sonnet): Label-based extraction — the normal path for well-labelled
+ * documents. Handles multi-slide Q sections and non-standard headings.
+ *
+ * Pass 2 (Opus): Content-inference fallback. Only fires when Pass 1 leaves
+ * two or more Q fields empty or shorter than Q_THIN_THRESHOLD characters.
+ * Fields filled by Pass 2 are listed in the returned `lowConfidenceFields`.
+ *
+ * Well-labelled documents (the common case) follow the Pass 1 path only —
+ * no change to existing behaviour or output quality.
+ *
+ * @param text       Extracted text (from textarea, PPTX dump, etc.)
+ * @param inputHint  "pptx" adds slide-aware extraction instructions to Pass 1.
+ *                   "text" (default) uses the standard prompt.
+ */
+export async function identifySections(
+  text: string,
+  inputHint: "pptx" | "text" = "text"
+): Promise<IdentifiedSections> {
+  const pass1 = await runSectionPass1(text, inputHint);
+  const thin = thinQFields(pass1);
+
+  // Fast path: Pass 1 succeeded for all (or all but one) sections.
+  if (thin.length < 2) {
+    return pass1;
+  }
+
+  console.log(
+    `[identifySections] Pass 1 left ${thin.length} thin fields (${thin.join(", ")}). Triggering Pass 2 content-inference.`
+  );
+
+  let pass2: Sections;
+  try {
+    pass2 = await runSectionPass2(text);
+  } catch (err) {
+    // Pass 2 failure is non-fatal: return Pass 1 result with thin fields flagged.
+    console.error("[identifySections] Pass 2 failed, returning Pass 1 result.", err);
+    return { ...pass1, lowConfidenceFields: thin };
+  }
+
+  // Merge: keep Pass 1 values for well-identified fields; use Pass 2 for thin ones.
+  // If Pass 2 also returns thin/empty for a field, retain whatever Pass 1 had.
+  const merged: IdentifiedSections = {
+    q1: thin.includes("q1") ? (pass2.q1?.trim() || pass1.q1) : pass1.q1,
+    q2: thin.includes("q2") ? (pass2.q2?.trim() || pass1.q2) : pass1.q2,
+    q3: thin.includes("q3") ? (pass2.q3?.trim() || pass1.q3) : pass1.q3,
+    q4: thin.includes("q4") ? (pass2.q4?.trim() || pass1.q4) : pass1.q4,
+    q5: thin.includes("q5") ? (pass2.q5?.trim() || pass1.q5) : pass1.q5,
+    // A field is low-confidence when Pass 2 filled it but the fill was still thin,
+    // meaning the model was genuinely uncertain about that section's content.
+    lowConfidenceFields: thin.filter(
+      (k) => (pass2[k as keyof Sections]?.trim().length ?? 0) < Q_THIN_THRESHOLD
+    ),
+  };
+
+  if (merged.lowConfidenceFields?.length === 0) {
+    delete merged.lowConfidenceFields;
+  }
+
+  return merged;
 }
 
 // ── Step 2: score all 9 dimensions in ONE call ────────────────────────────────
