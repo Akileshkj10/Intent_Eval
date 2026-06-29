@@ -6,8 +6,28 @@ import {
   View,
   Text,
   StyleSheet,
+  Font,
   renderToBuffer,
 } from "@react-pdf/renderer";
+
+// Register Inter from Google Fonts so the PDF uses the same typeface as the UI.
+Font.register({
+  family: "Inter",
+  fonts: [
+    {
+      src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfAZ9hiJ-Ek-_EeA.woff2",
+      fontWeight: 400,
+    },
+    {
+      src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuI6fAZ9hiJ-Ek-_EeA.woff2",
+      fontWeight: 600,
+    },
+    {
+      src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuFuYAZ9hiJ-Ek-_EeA.woff2",
+      fontWeight: 700,
+    },
+  ],
+});
 import { requireSiteAuthRequest } from "@/lib/requireSiteAuth";
 import { canonicalHeading, TARGETED_RECOMMENDATIONS_PLACEMENT } from "@/lib/reportFormat";
 
@@ -142,7 +162,7 @@ const S = StyleSheet.create({
     paddingBottom: 52,
     paddingHorizontal: 44,
     fontSize: 10,
-    fontFamily: "Helvetica",
+    fontFamily: "Inter",
     color: "#1e293b",
     lineHeight: 1.5,
   },
@@ -182,9 +202,9 @@ const S = StyleSheet.create({
     alignItems: "center",
   },
   bannerLabel: { fontSize: 8, color: "#94a3b8", textTransform: "uppercase", marginBottom: 3 },
-  bannerScore: { fontSize: 28, fontFamily: "Helvetica-Bold", lineHeight: 1 },
+  bannerScore: { fontSize: 28, fontFamily: "Inter", fontWeight: 700, lineHeight: 1 },
   bannerSub: { fontSize: 11, color: "#64748b" },
-  bannerBand: { fontSize: 12, fontFamily: "Helvetica-Bold" },
+  bannerBand: { fontSize: 12, fontFamily: "Inter", fontWeight: 700 },
   // Meta box
   metaBox: {
     backgroundColor: "#f8fafc",
@@ -200,7 +220,8 @@ const S = StyleSheet.create({
   // Headings
   h1: {
     fontSize: 15,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Inter",
+    fontWeight: 700,
     color: "#0f172a",
     marginTop: 20,
     marginBottom: 6,
@@ -210,7 +231,8 @@ const S = StyleSheet.create({
   },
   h2: {
     fontSize: 12,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Inter",
+    fontWeight: 700,
     color: "#0f172a",
     marginTop: 16,
     marginBottom: 5,
@@ -220,7 +242,8 @@ const S = StyleSheet.create({
   },
   h3: {
     fontSize: 10,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Inter",
+    fontWeight: 700,
     color: "#1e293b",
     marginTop: 10,
     marginBottom: 5,
@@ -235,7 +258,8 @@ const S = StyleSheet.create({
   },
   tableHeaderCell: {
     fontSize: 8,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Inter",
+    fontWeight: 700,
     color: "#f1f5f9",
     padding: "5 8",
   },
@@ -258,7 +282,7 @@ const S = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 9,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: "Inter",
     textTransform: "uppercase",
     letterSpacing: 0.5,
     color: "#64748b",
@@ -276,7 +300,7 @@ const S = StyleSheet.create({
     padding: 10,
     marginBottom: 7,
   },
-  recTitle: { fontSize: 10, fontFamily: "Helvetica-Bold", marginBottom: 4 },
+  recTitle: { fontSize: 10, fontFamily: "Inter", fontWeight: 700, marginBottom: 4 },
   recAction: { fontSize: 9, color: "#1f2937", lineHeight: 1.5, marginBottom: 3 },
   recImpact: { fontSize: 8.5, fontStyle: "italic", color: "#4b5563" },
   // Overall box
@@ -288,7 +312,7 @@ const S = StyleSheet.create({
     marginTop: 6,
   },
   // Commentary section
-  commentaryLabel: { fontFamily: "Helvetica-Bold" },
+  commentaryLabel: { fontFamily: "Inter" },
 });
 
 // ── PDF Document component ────────────────────────────────────────────────────
@@ -363,16 +387,16 @@ function ReportDocument({ result, today }: { result: EvalResult; today: string }
         <Text style={S.h2}>{canonicalHeading(2)}</Text>
         <Text style={S.p}>
           This 5MAP scored{" "}
-          <Text style={{ fontFamily: "Helvetica-Bold" }}>{result.total.toFixed(2)}/5.00</Text>,
+          <Text style={{ fontFamily: "Inter", fontWeight: 700 }}>{result.total.toFixed(2)}/5.00</Text>,
           placing it in the band:{" "}
-          <Text style={{ fontFamily: "Helvetica-Bold" }}>{result.band}</Text>.
+          <Text style={{ fontFamily: "Inter", fontWeight: 700 }}>{result.band}</Text>.
         </Text>
         <Text style={S.p}>
-          <Text style={{ fontFamily: "Helvetica-Bold" }}>Relative strengths: </Text>
+          <Text style={{ fontFamily: "Inter", fontWeight: 700 }}>Relative strengths: </Text>
           {result.strengths.join(", ")}.
         </Text>
         <Text style={S.p}>
-          <Text style={{ fontFamily: "Helvetica-Bold" }}>Priority improvement areas: </Text>
+          <Text style={{ fontFamily: "Inter" }}>Priority improvement areas: </Text>
           {result.improvements.join(", ")}.
         </Text>
 
@@ -413,14 +437,14 @@ function ReportDocument({ result, today }: { result: EvalResult; today: string }
                     wrap={false}
                   >
                     <View style={[S.tableCell, { flex: 3 }]}>
-                      <Text style={{ fontFamily: "Helvetica-Bold" }}>{d.name}</Text>
+                      <Text style={{ fontFamily: "Inter" }}>{d.name}</Text>
                     </View>
                     <View style={[S.tableCell, { flex: 0.6, alignItems: "center" }]}>
                       <Text style={{ color: "#64748b" }}>{d.weight}</Text>
                     </View>
                     <View style={[S.tableCell, { flex: 1, alignItems: "center" }]}>
                       <Text style={{ color: c, fontSize: 9 }}>{dots(d.score)}</Text>
-                      <Text style={{ color: c, fontFamily: "Helvetica-Bold" }}>
+                      <Text style={{ color: c, fontFamily: "Inter" }}>
                         {d.score}/5
                       </Text>
                     </View>
@@ -447,20 +471,20 @@ function ReportDocument({ result, today }: { result: EvalResult; today: string }
           {result.subtotals.map((s, idx) => (
             <View key={s.label} style={[S.tableRow, idx % 2 === 1 ? S.tableRowAlt : {}]}>
               <Text style={[S.tableCell, { flex: 3 }]}>{s.label}</Text>
-              <Text style={[S.tableCell, { flex: 1, textAlign: "right", fontFamily: "Helvetica-Bold" }]}>
+              <Text style={[S.tableCell, { flex: 1, textAlign: "right", fontFamily: "Inter" }]}>
                 {s.value.toFixed(2)}
               </Text>
             </View>
           ))}
           {/* Total row */}
           <View style={[S.tableRow, { backgroundColor: "#0f172a" }]}>
-            <Text style={[S.tableCell, { flex: 3, color: "#f1f5f9", fontFamily: "Helvetica-Bold" }]}>
+            <Text style={[S.tableCell, { flex: 3, color: "#f1f5f9", fontFamily: "Inter" }]}>
               Total weighted score
             </Text>
             <Text
               style={[
                 S.tableCell,
-                { flex: 1, textAlign: "right", fontFamily: "Helvetica-Bold", fontSize: 12, color: col },
+                { flex: 1, textAlign: "right", fontFamily: "Inter", fontSize: 12, color: col },
               ]}
             >
               {result.total.toFixed(2)}
@@ -490,7 +514,7 @@ function ReportDocument({ result, today }: { result: EvalResult; today: string }
                   <Text style={S.recTitle}>
                     {idx + 1}. {rec.targetDimensionName}
                   </Text>
-                  <Text style={{ fontSize: 9, color: rc, fontFamily: "Helvetica-Bold" }}>
+                  <Text style={{ fontSize: 9, color: rc, fontFamily: "Inter" }}>
                     Currently {rec.currentScore}/5
                   </Text>
                 </View>
@@ -513,7 +537,7 @@ function ReportDocument({ result, today }: { result: EvalResult; today: string }
         {/* 13. Overall Assessment */}
         <Text style={S.h2}>{canonicalHeading(13)}</Text>
         <View style={[S.overallBox, { borderTopWidth: 2, borderTopColor: col }]} wrap={false}>
-          <Text style={[S.p, { fontFamily: "Helvetica-Bold" }]}>
+          <Text style={[S.p, { fontFamily: "Inter" }]}>
             Score {result.total.toFixed(2)}/5.00 — {result.band}
           </Text>
           <Text style={S.p}>{narrative.overallAssessment}</Text>
@@ -534,7 +558,7 @@ function ReportDocument({ result, today }: { result: EvalResult; today: string }
             d.rationale;
           return (
             <View key={`appendix-${d.id}`} style={[S.tableRow, idx % 2 === 1 ? S.tableRowAlt : {}]} wrap={false}>
-              <Text style={[S.tableCell, { flex: 2.5, fontFamily: "Helvetica-Bold" }]}>{d.name}</Text>
+              <Text style={[S.tableCell, { flex: 2.5, fontFamily: "Inter" }]}>{d.name}</Text>
               <Text style={[S.tableCell, { flex: 0.6, textAlign: "center" }]}>{d.section}</Text>
               <Text style={[S.tableCell, { flex: 0.8, textAlign: "center" }]}>{d.score}/5</Text>
               <Text style={[S.tableCell, { flex: 1, textAlign: "right" }]}>{d.weightedScore.toFixed(2)}</Text>

@@ -3,7 +3,7 @@
 html { font-size: 16px; }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-inter), "Inter", system-ui, -apple-system, sans-serif;
   background: #f1f5f9;
   color: #1e293b;
   min-height: 100vh;
@@ -11,7 +11,7 @@ body {
 
 /* ── Report document typography ───────────────────────────────────────────── */
 .report {
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--font-inter), "Inter", system-ui, -apple-system, sans-serif;
   font-size: 15px;
   line-height: 1.75;
   color: #111827;
@@ -26,7 +26,7 @@ body {
   margin-bottom: 4px;
 }
 .report .meta {
-  font-family: "Courier New", monospace;
+  font-family: var(--font-inter), "Inter", system-ui, -apple-system, sans-serif;
   font-size: 12px;
   color: #64748b;
   line-height: 1.9;
@@ -50,7 +50,7 @@ body {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-inter), "Inter", system-ui, -apple-system, sans-serif;
   margin-bottom: 20px;
 }
 .report th {
