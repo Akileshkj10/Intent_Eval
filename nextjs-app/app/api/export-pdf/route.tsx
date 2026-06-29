@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import path from "path";
 import React from "react";
 import {
   Document,
@@ -9,45 +10,20 @@ import {
   Font,
   renderToBuffer,
 } from "@react-pdf/renderer";
+import { requireSiteAuthRequest } from "@/lib/requireSiteAuth";
 
-// Register Inter from Google Fonts so the PDF uses the same typeface as the UI.
-// Inter static TTF files — woff2 is not supported by react-pdf; use TTF urls.
+// Use locally bundled woff files so PDF generation has no external network
+// dependency at render time. Files live in public/fonts/ and are traced by Vercel.
+const F = (name: string) => path.join(process.cwd(), "public", "fonts", name);
+
 Font.register({
   family: "Inter",
   fonts: [
-    {
-      src: "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiA.woff2",
-      fontWeight: 400,
-      fontStyle: "normal",
-    },
-    {
-      src: "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiA.woff2",
-      fontWeight: 400,
-      fontStyle: "italic",
-    },
-    {
-      src: "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuI6fAZ9hiA.woff2",
-      fontWeight: 600,
-      fontStyle: "normal",
-    },
-    {
-      src: "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuI6fAZ9hiA.woff2",
-      fontWeight: 600,
-      fontStyle: "italic",
-    },
-    {
-      src: "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFuYAZ9hiA.woff2",
-      fontWeight: 700,
-      fontStyle: "normal",
-    },
-    {
-      src: "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFuYAZ9hiA.woff2",
-      fontWeight: 700,
-      fontStyle: "italic",
-    },
+    { src: F("inter-latin-400-normal.woff"), fontWeight: 400, fontStyle: "normal" },
+    { src: F("inter-latin-600-normal.woff"), fontWeight: 600, fontStyle: "normal" },
+    { src: F("inter-latin-700-normal.woff"), fontWeight: 700, fontStyle: "normal" },
   ],
 });
-import { requireSiteAuthRequest } from "@/lib/requireSiteAuth";
 import { canonicalHeading, TARGETED_RECOMMENDATIONS_PLACEMENT } from "@/lib/reportFormat";
 
 export const maxDuration = 60;
@@ -411,11 +387,11 @@ function ReportDocument({ result, today }: { result: EvalResult; today: string }
         </Text>
         <Text style={S.p}>
           <Text style={{ fontFamily: "Inter", fontWeight: 700 }}>Relative strengths: </Text>
-          {result.strengths.join(", ")}.
+          {(result.strengths ?? []).join(", ")}.
         </Text>
         <Text style={S.p}>
           <Text style={{ fontFamily: "Inter" }}>Priority improvement areas: </Text>
-          {result.improvements.join(", ")}.
+          {(result.improvements ?? []).join(", ")}.
         </Text>
 
         {/* 3. Purpose */}
@@ -432,7 +408,7 @@ function ReportDocument({ result, today }: { result: EvalResult; today: string }
         {/* 5. Dimension Scores */}
         <Text style={S.h2}>{canonicalHeading(5)}</Text>
         {sectionOrder.map((sec) => {
-          const sub = result.subtotals.find((s) => s.label.startsWith(`Section ${sec}`));
+          const sub = (result.subtotals ?? []).find((s) => s.label.startsWith(`Section ${sec}`));
           const dims = sectionDims(sec);
           return (
             <View key={sec} style={{ marginBottom: 12 }} wrap={false}>
@@ -486,7 +462,7 @@ function ReportDocument({ result, today }: { result: EvalResult; today: string }
             <Text style={[S.tableHeaderCell, { flex: 3 }]}>Section</Text>
             <Text style={[S.tableHeaderCell, { flex: 1, textAlign: "right" }]}>Subtotal</Text>
           </View>
-          {result.subtotals.map((s, idx) => (
+          {(result.subtotals ?? []).map((s, idx) => (
             <View key={s.label} style={[S.tableRow, idx % 2 === 1 ? S.tableRowAlt : {}]}>
               <Text style={[S.tableCell, { flex: 3 }]}>{s.label}</Text>
               <Text style={[S.tableCell, { flex: 1, textAlign: "right", fontFamily: "Inter" }]}>

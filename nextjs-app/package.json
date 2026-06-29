@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.36.3",
+    "@fontsource/inter": "^5.2.8",
     "@react-pdf/renderer": "^4.5.1",
     "fast-xml-parser": "^5.8.0",
     "jszip": "^3.10.1",
