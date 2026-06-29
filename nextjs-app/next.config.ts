@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Prevent Next.js from bundling these packages — @sparticuz/chromium relies on
+  // its binary files staying at their installed path. If bundled, those paths break.
+  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
+
   async headers() {
     return [
       {
