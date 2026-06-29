@@ -11,20 +11,39 @@ import {
 } from "@react-pdf/renderer";
 
 // Register Inter from Google Fonts so the PDF uses the same typeface as the UI.
+// Inter static TTF files — woff2 is not supported by react-pdf; use TTF urls.
 Font.register({
   family: "Inter",
   fonts: [
     {
-      src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfAZ9hiJ-Ek-_EeA.woff2",
+      src: "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiA.woff2",
       fontWeight: 400,
+      fontStyle: "normal",
     },
     {
-      src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuI6fAZ9hiJ-Ek-_EeA.woff2",
+      src: "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiA.woff2",
+      fontWeight: 400,
+      fontStyle: "italic",
+    },
+    {
+      src: "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuI6fAZ9hiA.woff2",
       fontWeight: 600,
+      fontStyle: "normal",
     },
     {
-      src: "https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuFuYAZ9hiJ-Ek-_EeA.woff2",
+      src: "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuI6fAZ9hiA.woff2",
+      fontWeight: 600,
+      fontStyle: "italic",
+    },
+    {
+      src: "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFuYAZ9hiA.woff2",
       fontWeight: 700,
+      fontStyle: "normal",
+    },
+    {
+      src: "https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFuYAZ9hiA.woff2",
+      fontWeight: 700,
+      fontStyle: "italic",
     },
   ],
 });
@@ -272,7 +291,6 @@ const S = StyleSheet.create({
   tableRowAlt: { backgroundColor: "#f8fafc" },
   tableCell: { padding: "6 8", fontSize: 9, lineHeight: 1.45 },
   evidence: {
-    fontStyle: "italic",
     color: "#475569",
     borderLeftWidth: 2,
     borderLeftColor: "#cbd5e1",
@@ -302,7 +320,7 @@ const S = StyleSheet.create({
   },
   recTitle: { fontSize: 10, fontFamily: "Inter", fontWeight: 700, marginBottom: 4 },
   recAction: { fontSize: 9, color: "#1f2937", lineHeight: 1.5, marginBottom: 3 },
-  recImpact: { fontSize: 8.5, fontStyle: "italic", color: "#4b5563" },
+  recImpact: { fontSize: 8.5, color: "#4b5563" },
   // Overall box
   overallBox: {
     borderWidth: 0.5,
@@ -497,8 +515,8 @@ function ReportDocument({ result, today }: { result: EvalResult; today: string }
         <Text style={S.p}>{narrative.commentaryIntro}</Text>
         <Text style={S.h3}>{TARGETED_RECOMMENDATIONS_PLACEMENT.label}</Text>
         {result.recommendations.length === 0 ? (
-          <Text style={[S.p, { fontStyle: "italic", color: "#4b5563" }]}>
-            No high-impact improvements identified — this intent is already operating at a strong
+          <Text style={[S.p, { color: "#4b5563" }]}>
+            No high-impact improvements identified. This intent is already operating at a strong
             standard across all dimensions.
           </Text>
         ) : (
