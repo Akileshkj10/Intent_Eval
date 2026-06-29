@@ -15,7 +15,8 @@ function assert(condition, label) {
 }
 
 const reportFormatSrc = fs.readFileSync(path.join(__dirname, "../lib/reportFormat.ts"), "utf8");
-const pageSrc = fs.readFileSync(path.join(__dirname, "../app/page.tsx"), "utf8");
+// UI logic lives in EvaluatorClient.tsx (extracted from page.tsx during Phase I4).
+const pageSrc = fs.readFileSync(path.join(__dirname, "../app/EvaluatorClient.tsx"), "utf8");
 const evaluatorSrc = fs.readFileSync(path.join(__dirname, "../lib/evaluator.ts"), "utf8");
 const routeSrc = fs.readFileSync(path.join(__dirname, "../app/api/evaluate/route.ts"), "utf8");
 
@@ -108,11 +109,8 @@ for (let sectionNumber = 1; sectionNumber <= 14; sectionNumber++) {
   );
 }
 assert(pageSrc.includes("_sections?: Sections"), "UI result type accepts identified Q sections");
-assert(pageSrc.includes("Q1 source excerpt"), "UI renders Q1 source excerpt");
-assert(pageSrc.includes("Q2 source excerpt"), "UI renders Q2 source excerpt");
-assert(pageSrc.includes("Q3 source excerpt"), "UI renders Q3 source excerpt");
-assert(pageSrc.includes("Q4 source excerpt"), "UI renders Q4 source excerpt");
-assert(pageSrc.includes("Q5 source excerpt"), "UI renders Q5 source excerpt");
+// Q source excerpts were intentionally removed from the report in a prior phase (user request).
+// Evidence tags and quote styling on dimension rationales are preserved.
 assert(pageSrc.includes("[5MAP input]"), "Dimension evidence tag is preserved");
 assert(pageSrc.includes("fontStyle: \"italic\""), "Evidence quote styling is preserved");
 assert(reportFormatSrc.includes("Appendix A — Scoring rationale"), "Appendix A canonical title is present");
